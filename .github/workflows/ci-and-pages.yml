@@ -24,22 +24,13 @@ jobs:
         uses: actions/checkout@v4
 
       # --- IOTA Move CLI & tests ---
-      - name: Install Rust toolchain (for IOTA Move CLI)
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          profile: minimal
-
-      - name: Install IOTA Move CLI
-        run: |
-          cargo install --git https://github.com/iotaledger/iota --bin iota-move --locked
-        # 若未來 IOTA 官方提供更推薦的安裝方式，可再依照官方文件調整
-
       - name: Run IOTA Move tests
-        working-directory: contracts
         run: |
-          iota move test
+          docker run --rm \
+            -v ${{ github.workspace }}/contracts:/workspace/contracts \
+            -w /workspace \
+            ghcr.io/vagrantpi/iota-cli:latest \
+            "cd contracts && iota move test"
 
       # --- Node / Frontend build ---
       - name: Setup Node.js
@@ -64,7 +55,6 @@ jobs:
           path: frontend/dist
 
   deploy:
-    # 只在 push 到 main 時部署，PR 僅跑測試與 build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-and-test
     runs-on: ubuntu-latest

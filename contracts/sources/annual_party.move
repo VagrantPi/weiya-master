@@ -483,6 +483,178 @@ module weiya_master::annual_party {
         });
     }
 
+    //
+    // 入口函式：樂透系統
+    //
+
+    public entry fun create_lottery(
+        activity_id: ID,
+        activity: &mut Activity,
+        ctx: &mut TxContext,
+    ) {
+        let organizer_addr = iota::tx_context::sender(ctx);
+        let actual_id = object::id(activity);
+
+        // 確認傳入的 Activity ID
+        assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
+
+        // 僅 organizer 可建立樂透
+        if (organizer_addr != activity.organizer) {
+            abort E_NOT_ORGANIZER;
+        };
+
+        // 活動不可已關閉
+        if (activity.status == ActivityStatus::CLOSED) {
+            abort E_ACTIVITY_CLOSED;
+        };
+
+        // 單一活動同時間僅允許一個開啟中的樂透
+        if (!option::is_none(&activity.lottery_id)) {
+            abort E_LOTTERY_NOT_OPEN;
+        };
+
+        let lottery = Lottery {
+            id: object::new(ctx),
+            activity_id,
+            status: LotteryStatus::OPEN,
+            pot_coin: Coin<IOTA> { value: 0 },
+            participants: vector[],
+            winner: option::none<address>(),
+        };
+
+        let lottery_id = object::id(&lottery);
+
+        activity.lottery_id = option::some<ID>(lottery_id);
+
+        transfer::share_object(lottery);
+
+        event::emit(LotteryCreatedEvent {
+            activity_id,
+            lottery_id,
+        });
+    }
+
+    public entry fun join_lottery(
+        activity_id: ID,
+        activity: &Activity,
+        lottery: &mut Lottery,
+        amount: u64,
+        ctx: &mut TxContext,
+    ) {
+        let user_addr = iota::tx_context::sender(ctx);
+
+        let actual_activity_id = object::id(activity);
+        assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
+
+        // 樂透必須隸屬於此活動
+        if (lottery.activity_id != activity_id) {
+            abort E_LOTTERY_NOT_FOUND;
+        };
+
+        // 樂透狀態必須為開啟
+        if (lottery.status != LotteryStatus::OPEN) {
+            abort E_LOTTERY_NOT_OPEN;
+        };
+
+        // 使用者必須已加入活動
+        if (!vector::contains(&activity.participants, &user_addr)) {
+            abort E_NO_PARTICIPANTS;
+        };
+
+        // 不可重複加入同一樂透
+        if (vector::contains(&lottery.participants, &user_addr)) {
+            abort E_ALREADY_JOINED_LOTTERY;
+        };
+
+        let coin_in = withdraw_iota(amount, ctx);
+        merge_iota(&mut lottery.pot_coin, coin_in);
+
+        vector::push_back(&mut lottery.participants, user_addr);
+
+        let lottery_id = object::id(lottery);
+
+        event::emit(LotteryJoinedEvent {
+            activity_id,
+            lottery_id,
+            participant_addr: user_addr,
+            amount,
+        });
+    }
+
+    public entry fun execute_lottery(
+        activity_id: ID,
+        activity: &Activity,
+        lottery: &mut Lottery,
+        client_seed: u64,
+        ctx: &mut TxContext,
+    ) {
+        let organizer_addr = iota::tx_context::sender(ctx);
+
+        let actual_activity_id = object::id(activity);
+        assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
+
+        // 僅 organizer 可執行樂透
+        if (organizer_addr != activity.organizer) {
+            abort E_NOT_ORGANIZER;
+        };
+
+        // 樂透必須隸屬於此活動
+        if (lottery.activity_id != activity_id) {
+            abort E_LOTTERY_NOT_FOUND;
+        };
+
+        // 樂透必須為開啟狀態
+        if (lottery.status != LotteryStatus::OPEN) {
+            abort E_LOTTERY_NOT_OPEN;
+        };
+
+        let n = vector::length(&lottery.participants);
+        if (n == 0) {
+            abort E_LOTTERY_NO_PARTICIPANTS;
+        };
+
+        // 隨機數：hash(tx_digest || organizer_addr || client_seed)
+        let tx_digest_ref = iota::tx_context::digest(ctx);
+        let mut data = bcs::to_bytes(tx_digest_ref);
+        let mut sender_bytes = bcs::to_bytes(&organizer_addr);
+        let mut seed_bytes = bcs::to_bytes(&client_seed);
+        vector::append(&mut data, sender_bytes);
+        vector::append(&mut data, seed_bytes);
+
+        let hash_bytes = hash::sha3_256(data);
+
+        // 取前 8 bytes 轉成 u64
+        let mut digest_index: u64 = 0;
+        let mut random_u64 = 0;
+        while (digest_index < 8) {
+            random_u64 = (random_u64 << 8) + (hash_bytes[digest_index] as u64);
+            digest_index = digest_index + 1;
+        };
+
+        let start = random_u64 % n;
+
+        let winner_addr = lottery.participants[start];
+
+        // 將樂透彩池全部發放給中獎者
+        let amount_total = lottery.pot_coin.value;
+        let coin_out = Coin<IOTA> { value: amount_total };
+        lottery.pot_coin.value = 0;
+
+        deposit_iota(winner_addr, coin_out);
+
+        lottery.status = LotteryStatus::DRAWN;
+        lottery.winner = option::some<address>(winner_addr);
+
+        let lottery_id = object::id(lottery);
+
+        event::emit(LotteryExecutedEvent {
+            activity_id,
+            lottery_id,
+            winner_addr,
+            amount: amount_total,
+        });
+    }
+
     public entry fun draw_prize(
         activity_id: ID,
         activity: &mut Activity,
