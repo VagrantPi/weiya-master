@@ -128,6 +128,7 @@ iota move test
    * 檢查尚未 join（沒有 Participant object / 沒在 participants vector 中）
    * 建立 Participant object（owner = user）
    * `activity.participant_count += 1`
+   * 同步在 `activity.eligible_flags` push true（代表該地址目前可參與抽獎）。
    * `participants.push(user_addr)`
    * emit `ParticipantJoined`
 

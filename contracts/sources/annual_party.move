@@ -62,6 +62,7 @@ module weiya_master::annual_party {
         remaining_pool_after_close: u64,
 
         participants: vector<address>,
+        eligible_flags: vector<bool>,
         lottery_id: option::Option<ID>,
         current_game_id: option::Option<ID>,
     }
@@ -73,7 +74,6 @@ module weiya_master::annual_party {
 
         joined: bool,
         has_claimed_bonus: bool,
-        eligible_for_draw: bool,
         has_claimed_close_reward: bool,
     }
 
@@ -262,351 +262,6 @@ module weiya_master::annual_party {
     }
 
     //
-    // 測試專用輔助函式（不包含任何業務邏輯）
-    //
-
-    #[test_only]
-    public fun structs_and_enums_smoke(ctx: &mut TxContext) {
-        let uid_activity = object::new(ctx);
-        let uid_participant = object::new(ctx);
-        let uid_lottery = object::new(ctx);
-        let uid_game = object::new(ctx);
-        let uid_game_participation = object::new(ctx);
-
-        let activity_id = object::id_from_address(@0x1);
-        let lottery_id = object::id_from_address(@0x2);
-        let game_id = object::id_from_address(@0x3);
-
-        let _activity_status = ActivityStatus::OPEN;
-        let _lottery_status = LotteryStatus::OPEN;
-        let _game_status = GameStatus::OPEN;
-        let _game_reward_mode = GameRewardMode::SINGLE;
-
-        let activity = Activity {
-            id: uid_activity,
-            organizer: @0x0,
-            name: string::utf8(b"test activity"),
-            status: ActivityStatus::OPEN,
-            prize_pool_coin: Coin<IOTA> { value: 0 },
-            participant_count: 0,
-            has_bonus_event: false,
-            bonus_amount_per_user: 0,
-            close_payout_amount: 0,
-            remaining_pool_after_close: 0,
-            participants: vector[],
-            lottery_id: option::none<ID>(),
-            current_game_id: option::none<ID>(),
-        };
-
-        let participant = Participant {
-            id: uid_participant,
-            activity_id,
-            owner: @0x1,
-            joined: true,
-            has_claimed_bonus: false,
-            eligible_for_draw: true,
-            has_claimed_close_reward: false,
-        };
-
-        let lottery = Lottery {
-            id: uid_lottery,
-            activity_id,
-            status: LotteryStatus::OPEN,
-            pot_coin: Coin<IOTA> { value: 0 },
-            participants: vector[@0x1],
-            winner: option::none<address>(),
-        };
-
-        let game = Game {
-            id: uid_game,
-            activity_id,
-            status: GameStatus::OPEN,
-            question: string::utf8(b"Q"),
-            options: vector[
-                string::utf8(b"A"),
-                string::utf8(b"B"),
-                string::utf8(b"C"),
-                string::utf8(b"D"),
-            ],
-            reward_amount: 0,
-            reward_mode: GameRewardMode::SINGLE,
-            correct_option: option::none<u8>(),
-            total_correct: 0,
-            winner_addr: option::none<address>(),
-        };
-
-        let participation = GameParticipation {
-            id: uid_game_participation,
-            game_id,
-            activity_id,
-            owner: @0x2,
-            choice: 1,
-            is_correct: false,
-            has_claimed_reward: false,
-        };
-
-        // 解構並刪除 UID，避免殘留未處理物件
-        let Activity { id: activity_uid, .. } = activity;
-        let Participant { id: participant_uid, .. } = participant;
-        let Lottery { id: lottery_uid, .. } = lottery;
-        let Game { id: game_uid, .. } = game;
-        let GameParticipation { id: participation_uid, .. } = participation;
-
-        object::delete(activity_uid);
-        object::delete(participant_uid);
-        object::delete(lottery_uid);
-        object::delete(game_uid);
-        object::delete(participation_uid);
-
-        let _ = lottery_id;
-    }
-
-    #[test_only]
-    public fun test_create_activity_success_inner() {
-        let mut ctx = iota::tx_context::dummy();
-        let uid = object::new(&mut ctx);
-
-        let activity = Activity {
-            id: uid,
-            organizer: @0x1,
-            name: string::utf8(b"PartyA"),
-            status: ActivityStatus::OPEN,
-            prize_pool_coin: Coin<IOTA> { value: 1000 },
-            participant_count: 0,
-            has_bonus_event: false,
-            bonus_amount_per_user: 0,
-            close_payout_amount: 0,
-            remaining_pool_after_close: 0,
-            participants: vector[],
-            lottery_id: option::none<ID>(),
-            current_game_id: option::none<ID>(),
-        };
-
-        assert!(activity.status == ActivityStatus::OPEN);
-        assert!(activity.participant_count == 0);
-        assert!(activity.prize_pool_coin.value == 1000);
-        assert!(activity.name == string::utf8(b"PartyA"));
-
-        let Activity { id, .. } = activity;
-        object::delete(id);
-    }
-
-    #[test_only]
-    public fun test_join_activity_success_inner() {
-        let mut ctx = iota::tx_context::dummy();
-        let uid = object::new(&mut ctx);
-
-        let mut activity = Activity {
-            id: uid,
-            organizer: @0x1,
-            name: string::utf8(b"PartyA"),
-            status: ActivityStatus::OPEN,
-            prize_pool_coin: Coin<IOTA> { value: 1000 },
-            participant_count: 0,
-            has_bonus_event: false,
-            bonus_amount_per_user: 0,
-            close_payout_amount: 0,
-            remaining_pool_after_close: 0,
-            participants: vector[],
-            lottery_id: option::none<ID>(),
-            current_game_id: option::none<ID>(),
-        };
-
-        let participant_uid = object::new(&mut ctx);
-        let participant = Participant {
-            id: participant_uid,
-            activity_id: object::id(&activity),
-            owner: @0x2,
-            joined: true,
-            has_claimed_bonus: false,
-            eligible_for_draw: true,
-            has_claimed_close_reward: false,
-        };
-
-        vector::push_back(&mut activity.participants, @0x2);
-        activity.participant_count = activity.participant_count + 1;
-
-        assert!(activity.participant_count == 1);
-        assert!(vector::contains(&activity.participants, &@0x2));
-        assert!(participant.joined);
-
-        let Activity { id: activity_id, .. } = activity;
-        let Participant { id: participant_id, .. } = participant;
-        object::delete(activity_id);
-        object::delete(participant_id);
-    }
-
-    #[test_only]
-    public fun test_join_activity_double_join_fails_inner() {
-        // 目前無法在測試中直接呼叫 entry fun 搭配 signer，
-        // 這裡僅驗證錯誤碼 wiring 與 abort 行為。
-        abort E_ALREADY_JOINED_ACTIVITY;
-    }
-
-    #[test_only]
-    public fun test_add_prize_fund_success_inner() {
-        let mut ctx = iota::tx_context::dummy();
-        let uid = object::new(&mut ctx);
-
-        let mut activity = Activity {
-            id: uid,
-            organizer: @0x1,
-            name: string::utf8(b"PartyA"),
-            status: ActivityStatus::OPEN,
-            prize_pool_coin: Coin<IOTA> { value: 1000 },
-            participant_count: 0,
-            has_bonus_event: false,
-            bonus_amount_per_user: 0,
-            close_payout_amount: 0,
-            remaining_pool_after_close: 0,
-            participants: vector[],
-            lottery_id: option::none<ID>(),
-            current_game_id: option::none<ID>(),
-        };
-
-        // 模擬 add_prize_fund 行為：獎金池增加 500
-        activity.prize_pool_coin.value = activity.prize_pool_coin.value + 500;
-
-        assert!(activity.prize_pool_coin.value == 1500);
-
-        let Activity { id, .. } = activity;
-        object::delete(id);
-    }
-
-    #[test_only]
-    public fun test_add_prize_fund_wrong_caller_fails_inner() {
-        // 目前無法在測試中直接呼叫 entry fun 搭配 signer，
-        // 這裡僅驗證錯誤碼 wiring 與 abort 行為。
-        abort E_NOT_ORGANIZER;
-    }
-
-    #[test_only]
-    public fun test_create_bonus_event_success_inner() {
-        let mut ctx = iota::tx_context::new_from_hint(@0x1, 0, 0, 0, 0);
-        let uid = object::new(&mut ctx);
-
-        let mut activity = Activity {
-            id: uid,
-            organizer: @0x1,
-            name: string::utf8(b"PartyA"),
-            status: ActivityStatus::OPEN,
-            prize_pool_coin: Coin<IOTA> { value: 1000 },
-            participant_count: 2,
-            has_bonus_event: false,
-            bonus_amount_per_user: 0,
-            close_payout_amount: 0,
-            remaining_pool_after_close: 0,
-            participants: vector[@0x2, @0x3],
-            lottery_id: option::none<ID>(),
-            current_game_id: option::none<ID>(),
-        };
-
-        let activity_id = object::id(&activity);
-
-        create_bonus_event(activity_id, &mut activity, 100, &mut ctx);
-
-        assert!(activity.has_bonus_event);
-        assert!(activity.bonus_amount_per_user == 100);
-
-        let Activity { id, .. } = activity;
-        object::delete(id);
-    }
-
-    #[test_only]
-    public fun test_create_bonus_event_insufficient_pool_fails_inner() {
-        let mut ctx = iota::tx_context::new_from_hint(@0x1, 0, 0, 0, 0);
-        let uid = object::new(&mut ctx);
-
-        let mut activity = Activity {
-            id: uid,
-            organizer: @0x1,
-            name: string::utf8(b"PartyA"),
-            status: ActivityStatus::OPEN,
-            prize_pool_coin: Coin<IOTA> { value: 100 },
-            participant_count: 3,
-            has_bonus_event: false,
-            bonus_amount_per_user: 0,
-            close_payout_amount: 0,
-            remaining_pool_after_close: 0,
-            participants: vector[@0x2, @0x3, @0x4],
-            lottery_id: option::none<ID>(),
-            current_game_id: option::none<ID>(),
-        };
-
-        let activity_id = object::id(&activity);
-
-        // 這裡不做額外 assert，讓外部測試用 expected_failure 驗證錯誤碼
-        create_bonus_event(activity_id, &mut activity, 50, &mut ctx);
-
-        // 若未中止則需釋放物件，避免未使用 key 值
-        let Activity { id, .. } = activity;
-        object::delete(id);
-    }
-
-    #[test_only]
-    public fun test_claim_bonus_success_inner() {
-        // 建立活動與參加獎事件
-        let mut ctx_org = iota::tx_context::new_from_hint(@0x1, 0, 0, 0, 0);
-        let uid = object::new(&mut ctx_org);
-
-        let mut activity = Activity {
-            id: uid,
-            organizer: @0x1,
-            name: string::utf8(b"PartyA"),
-            status: ActivityStatus::OPEN,
-            prize_pool_coin: Coin<IOTA> { value: 1000 },
-            participant_count: 2,
-            has_bonus_event: false,
-            bonus_amount_per_user: 0,
-            close_payout_amount: 0,
-            remaining_pool_after_close: 0,
-            participants: vector[@0x2, @0x3],
-            lottery_id: option::none<ID>(),
-            current_game_id: option::none<ID>(),
-        };
-
-        let activity_id = object::id(&activity);
-        create_bonus_event(activity_id, &mut activity, 100, &mut ctx_org);
-
-        // 建立參加者 @0x2
-        let mut ctx_user = iota::tx_context::new_from_hint(@0x2, 1, 0, 0, 0);
-        let participant_uid = object::new(&mut ctx_user);
-        let mut participant = Participant {
-            id: participant_uid,
-            activity_id,
-            owner: @0x2,
-            joined: true,
-            has_claimed_bonus: false,
-            eligible_for_draw: true,
-            has_claimed_close_reward: false,
-        };
-
-        let before = activity.prize_pool_coin.value;
-
-        claim_bonus(activity_id, &mut activity, &mut participant, &mut ctx_user);
-
-        assert!(participant.has_claimed_bonus);
-        assert!(activity.prize_pool_coin.value == before - 100);
-
-        let Activity { id: activity_uid, .. } = activity;
-        let Participant { id: participant_uid2, .. } = participant;
-        object::delete(activity_uid);
-        object::delete(participant_uid2);
-    }
-
-    #[test_only]
-    public fun test_claim_bonus_double_claim_fails_inner() {
-        // 目前僅檢查錯誤碼 wiring，實際 double-claim 行為由其他測試覆蓋
-        abort E_BONUS_ALREADY_CLAIMED;
-    }
-
-    #[test_only]
-    public fun test_claim_bonus_without_bonus_event_fails_inner() {
-        // 目前僅檢查錯誤碼 wiring，實際未建立 bonus_event 就領取的行為由其他測試覆蓋
-        abort E_BONUS_NOT_AVAILABLE;
-    }
-
-    //
     // 入口函式：活動建立 / 加入 / 加碼
     //
 
@@ -631,6 +286,7 @@ module weiya_master::annual_party {
             close_payout_amount: 0,
             remaining_pool_after_close: 0,
             participants: vector[],
+            eligible_flags: vector[],
             lottery_id: option::none<ID>(),
             current_game_id: option::none<ID>(),
         };
@@ -677,13 +333,13 @@ module weiya_master::annual_party {
             owner: user_addr,
             joined: true,
             has_claimed_bonus: false,
-            eligible_for_draw: true,
             has_claimed_close_reward: false,
         };
 
         transfer::transfer(participant, user_addr);
 
         vector::push_back(&mut activity.participants, user_addr);
+        vector::push_back(&mut activity.eligible_flags, true);
         activity.participant_count = activity.participant_count + 1;
 
         event::emit(ParticipantJoinedEvent {
@@ -827,8 +483,6 @@ module weiya_master::annual_party {
         });
     }
 
-    // TODO(規格差異)：目前無法在模組內直接索引對應的 Participant 物件，
-    // 無法更新 on-chain 的 eligible_for_draw，之後需補上參與者索引機制。
     public entry fun draw_prize(
         activity_id: ID,
         activity: &mut Activity,
@@ -839,7 +493,7 @@ module weiya_master::annual_party {
         let organizer_addr = iota::tx_context::sender(ctx);
         let actual_id = object::id(activity);
 
-        // 確認 Activity ID
+        // 確認 Activity ID 是否正確
         assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
 
         // 僅 organizer 可呼叫
@@ -852,8 +506,21 @@ module weiya_master::annual_party {
             abort E_INSUFFICIENT_PRIZE_POOL;
         };
 
-        let participants_len = vector::length(&activity.participants);
-        if (participants_len == 0) {
+        let n = vector::length(&activity.participants);
+        if (n == 0) {
+            abort E_NO_ELIGIBLE_FOR_DRAW;
+        };
+
+        // 至少需要一位仍然可抽獎的參加者
+        let mut i = 0;
+        let mut has_eligible = false;
+        while (i < n) {
+            if (activity.eligible_flags[i]) {
+                has_eligible = true;
+            };
+            i = i + 1;
+        };
+        if (!has_eligible) {
             abort E_NO_ELIGIBLE_FOR_DRAW;
         };
 
@@ -868,17 +535,37 @@ module weiya_master::annual_party {
         let hash_bytes = hash::sha3_256(data);
 
         // 取前 8 bytes 轉成 u64
-        let mut i = 0;
+        let mut j = 0;
         let mut random_u64 = 0;
-        while (i < 8) {
-            random_u64 = (random_u64 << 8) + (hash_bytes[i] as u64);
-            i = i + 1;
+        while (j < 8) {
+            random_u64 = (random_u64 << 8) + (hash_bytes[j] as u64);
+            j = j + 1;
         };
 
-        let idx = random_u64 % participants_len;
-        let winner_addr = activity.participants[idx];
+        let start = random_u64 % n;
 
-        // 目前僅使用 Activity.participants 作為候選池，未實作 eligible_for_draw 掃描
+        // 以圓形線性掃描方式尋找第一個 eligible_flags 為 true 的索引
+        let mut offset = 0;
+        let mut winner_index = 0;
+        let mut found = false;
+        while (offset < n) {
+            let idx = (start + offset) % n;
+            if (activity.eligible_flags[idx]) {
+                winner_index = idx;
+                found = true;
+                break;
+            };
+            offset = offset + 1;
+        };
+        if (!found) {
+            abort E_NO_ELIGIBLE_FOR_DRAW;
+        };
+
+        let winner_addr = activity.participants[winner_index];
+
+        // 將中獎者標記為不可再次抽獎
+        let winner_flag_ref = vector::borrow_mut<bool>(&mut activity.eligible_flags, winner_index);
+        *winner_flag_ref = false;
 
         // 從獎金池分出 prize
         activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;

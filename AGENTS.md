@@ -32,6 +32,15 @@ The project MUST:
 
 ---
 
+## Testing Rules
+
+- Do NOT add `#[test_only]` functions inside `sources/annual_party.move`.
+- All tests MUST be placed in separate files under `contracts/tests/` using `#[test]` functions.
+- Production modules in `sources/` should contain only business logic (entry functions, structs, events, helpers).
+- If helper functions are needed only for tests, implement them inside the test modules, not in the source module.
+
+---
+
 ## Agents
 
 ### 1. Architect

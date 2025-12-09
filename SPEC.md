@@ -114,6 +114,8 @@ struct Activity has key {
 
     // 活動內索引
     participants: vector<address>,    // 報名過的地址列表（不去 dedup，join 時要先檢查）
+    eligible_flags: vector<bool>,     // 與 participants 對應，true 表示目前仍可被抽中
+
     lottery_id: option<ID>,           // 目前進行中的 Lottery（最多一個）
     current_game_id: option<ID>,      // 目前進行中的 Game（最多一個）
 }
@@ -131,7 +133,6 @@ struct Participant has key {
 
     joined: bool,
     has_claimed_bonus: bool,
-    eligible_for_draw: bool,
     has_claimed_close_reward: bool,
 }
 ```
@@ -254,8 +255,9 @@ struct GameParticipation has key {
    * `eligible_for_draw = true`
    * `has_claimed_close_reward = false`
 4. 將 `user_addr` push 進 `activity.participants`。
-5. `activity.participant_count += 1`。
-6. emit `ParticipantJoined(activity_id, user_addr)`。
+5. 同步在 `activity.eligible_flags` push true（代表該地址目前可參與抽獎）。
+6. `activity.participant_count += 1`。
+7. emit `ParticipantJoined(activity_id, user_addr)`。
 
 > 不涉及任何 IOTA 轉帳。
 
@@ -322,22 +324,33 @@ struct GameParticipation has key {
 **邏輯：**
 
 1. 檢查：
+   - caller 是 organizer
+   - `activity.prize_pool_coin` 中 IOTA ≥ `amount`
+   - `activity.participant_count > 0`
+   - `activity.eligible_flags` 中至少有一個 `true`（表示尚有可被抽中的參加者）
 
-   * caller 是 organizer
-   * `activity.prize_pool_coin` 中 IOTA ≥ `amount`
-   * 至少有一位 participant `eligible_for_draw == true`
-2. 整理候選名單：
+2. 隨機流程（以 Activity 自己的 participants / eligible_flags 為基礎）：
+   - 計算隨機數：
+     - `random_u64 = hash(block_hash || tx_hash || caller || client_seed)`
+   - 設：
+     - `n = activity.participants.length`
+     - `start = random_u64 % n`
+   - 從 `start` 開始，做一次線性掃描（可環狀模  n），找到第一個 `eligible_flags[i] == true` 的 index：
+     - 若找到 index = `winner_index`：
+       - `winner_addr = activity.participants[winner_index]`
+     - 若整圈掃完都沒有 `true`：
+       - abort `E_NO_ELIGIBLE_FOR_DRAW`
 
-   * 可簡化為：從 `activity.participants` vector 中 **隨機選 index**，再檢查該地址對應的 Participant 是否 `eligible_for_draw == true`，若否則線性往下找下一個（小規模場景可接受）。
-3. 隨機數：
+3. 更新狀態：
+   - 將 `activity.eligible_flags[winner_index] = false`，表示該地址在後續抽獎中不得再被抽中。
 
-   * `random_u64 = hash(block_hash || tx_hash || caller || client_seed)`
-   * `idx = random_u64 % activity.participants.length`
-4. 找出 `winner_addr`。
-5. 找對應 Participant，檢查 `eligible_for_draw == true`，並設為 `false`。
-6. 從 `prize_pool_coin` 中 `split amount` → `coin_out`。
-7. `deposit_iota(winner_addr, coin_out)`。
-8. emit `PrizeDrawExecuted(activity_id, winner_addr, amount)`。
+4. 發獎金：
+   - 從 `activity.prize_pool_coin` 中 `split amount` → `coin_out`
+   - `deposit_iota(winner_addr, coin_out)`
+
+5. 事件：
+   - emit `PrizeDrawExecuted(activity_id, winner_addr, amount)`
+
 
 > 單場活動中，可以執行多次 `draw_prize`，但每次會將 winner 的 `eligible_for_draw` 設為 false，避免重複中獎。
 
@@ -611,9 +624,8 @@ index = random_u64 % N
    * 每位員工在每活動只能 claim 一次參加獎。
 
 4. **抽獎：**
-
-   * 使用 `eligible_for_draw` flag 防止同一地址在多次 draw 中重複中獎。
-   * 抽獎金額由活動獎金池扣除。
+   - 使用 `Activity.eligible_flags`（與 `participants` 對應的 bool 向量）來控制抽獎資格。
+   - 每次 `draw_prize` 中獎的 index，其對應 `eligible_flags[index]` 會被設為 `false`，避免同一地址在多次抽獎中重複中獎。
 
 5. **樂透：**
 
