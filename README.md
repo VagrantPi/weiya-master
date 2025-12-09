@@ -186,21 +186,19 @@ git clone https://github.com/your-org/iota-move-annual-party-lottery.git
 cd iota-move-annual-party-lottery
 ```
 
-### 2. Setup Move toolchain
+### 2. Setup IOTA Move toolchain
 
-This will depend on your target chain. A generic example using the upstream Move CLI:
+本專案的 `contracts/` 資料夾是使用 `iota move new` 建立的，請使用 **IOTA Move CLI**：
 
 ```bash
-# Install Move CLI (adjust to your chain/tooling as needed)
-cargo install --git https://github.com/move-language/move move-cli
+# 安裝 IOTA Move CLI（依照 IOTA 官方文件為準）
+cargo install --git https://github.com/iotaledger/iota --bin iota-move --locked
 
 cd contracts
-move build
-move test
+iota move build
+iota move test
 cd ..
 ```
-
-> ⚠️ Replace the install command with the recommended toolchain for the IOTA / SVM environment you are using.
 
 ### 3. Install frontend dependencies
 
@@ -226,7 +224,7 @@ From the repo root:
 
 ```bash
 cd contracts
-move test
+iota move test
 cd ..
 ```
 
@@ -257,7 +255,7 @@ npm run build
 
 The workflow file at `.github/workflows/ci-and-pages.yml`:
 
-* Runs Move tests (`move test`) in `contracts/`
+* Runs IOTA Move tests (`iota move test`) in `contracts/`
 * Builds the frontend in `frontend/`
 * Uploads `frontend/dist` as a GitHub Pages artifact
 * Deploys to GitHub Pages when pushing to the `main` branch

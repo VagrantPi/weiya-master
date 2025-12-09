@@ -23,23 +23,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --- Move CLI & tests ---
-      - name: Install Rust toolchain (for Move CLI)
+      # --- IOTA Move CLI & tests ---
+      - name: Install Rust toolchain (for IOTA Move CLI)
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
           profile: minimal
 
-      - name: Install Move CLI (generic example)
+      - name: Install IOTA Move CLI
         run: |
-          cargo install --git https://github.com/move-language/move move-cli
-        # 如果 IOTA 提供官方 CLI，之後請改成對應的安裝指令
+          cargo install --git https://github.com/iotaledger/iota --bin iota-move --locked
+        # 若未來 IOTA 官方提供更推薦的安裝方式，可再依照官方文件調整
 
-      - name: Run Move tests
+      - name: Run IOTA Move tests
         working-directory: contracts
         run: |
-          move test
+          iota move test
 
       # --- Node / Frontend build ---
       - name: Setup Node.js

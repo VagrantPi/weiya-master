@@ -28,6 +28,7 @@ The project MUST:
 - Do NOT silently change the on-chain business logic. If there is a mismatch with the spec, propose a change explicitly in comments.
 - Prefer **TypeScript** for the frontend whenever possible.
 - Code should be clean, readable, and minimal. Avoid over-engineering.
+- All code comments must be in zh-tw to avoid mixing Chinese and English.
 
 ---
 
