@@ -655,6 +655,264 @@ module weiya_master::annual_party {
         });
     }
 
+    //
+    // 入口函式：四選一遊戲系統
+    //
+
+    public entry fun create_game(
+        activity_id: ID,
+        activity: &mut Activity,
+        question: string::String,
+        options: vector<string::String>,
+        reward_amount: u64,
+        mode_code: u8,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+        let actual_id = object::id(activity);
+
+        // 確認 Activity ID
+        assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
+
+        // 僅主辦人可建立遊戲
+        if (caller != activity.organizer) {
+            abort E_NOT_ORGANIZER;
+        };
+
+        // 活動不可已關閉
+        if (activity.status == ActivityStatus::CLOSED) {
+            abort E_ACTIVITY_CLOSED;
+        };
+
+        // 若已有舊遊戲，規格要求須關閉舊遊戲。
+        // 目前僅透過 ID 儲存，不具備由 ID 載入 Game 物件的索引能力，
+        // 因此無法在此處更新舊 Game 的 status，日後若引入索引結構再補強。
+
+        // 必須剛好有 4 個選項
+        if (vector::length(&options) != 4) {
+            abort E_INVALID_GAME_CHOICE;
+        };
+
+        // 獎金池需足以支付 reward_amount（此處僅檢查數值，不先預扣）
+        if (activity.prize_pool_coin.value < reward_amount) {
+            abort E_INSUFFICIENT_PRIZE_POOL;
+        };
+
+        // 以 u8 編碼 reward_mode：0 -> SINGLE，其餘視為 AVERAGE
+        let mode = if (mode_code == 0) {
+            GameRewardMode::SINGLE
+        } else {
+            GameRewardMode::AVERAGE
+        };
+
+        let game = Game {
+            id: object::new(ctx),
+            activity_id,
+            status: GameStatus::OPEN,
+            question: copy question,
+            options,
+            reward_amount,
+            reward_mode: mode,
+            correct_option: option::none<u8>(),
+            total_correct: 0,
+            winner_addr: option::none<address>(),
+        };
+
+        let game_id = object::id(&game);
+        activity.current_game_id = option::some<ID>(game_id);
+
+        transfer::share_object(game);
+
+        event::emit(GameCreatedEvent {
+            activity_id,
+            game_id,
+            reward_amount,
+            reward_mode: mode,
+        });
+    }
+
+    public entry fun submit_choice(
+        activity_id: ID,
+        activity: &Activity,
+        game_id: ID,
+        game: &mut Game,
+        choice: u8,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+
+        let actual_activity_id = object::id(activity);
+        assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
+
+        // 遊戲必須隸屬於此活動
+        if (game.activity_id != activity_id) {
+            abort E_GAME_NOT_FOUND;
+        };
+
+        // 遊戲狀態必須為開啟
+        if (game.status != GameStatus::OPEN) {
+            abort E_GAME_NOT_OPEN;
+        };
+
+        // 選項必須介於 1~4
+        if (choice < 1 || choice > 4) {
+            abort E_INVALID_GAME_CHOICE;
+        };
+
+        // 使用者必須已加入活動
+        if (!vector::contains(&activity.participants, &caller)) {
+            abort E_NO_PARTICIPANTS;
+        };
+
+        // TODO(規格差異)：目前缺乏 GameParticipation 索引，無法檢查是否已經提交過 choice。
+
+        let participation = GameParticipation {
+            id: object::new(ctx),
+            game_id,
+            activity_id,
+            owner: caller,
+            choice,
+            is_correct: false,
+            has_claimed_reward: false,
+        };
+
+        transfer::share_object(participation);
+    }
+
+    public entry fun reveal_game_answer(
+        activity_id: ID,
+        activity: &Activity,
+        game_id: ID,
+        game: &mut Game,
+        correct_option: u8,
+        client_seed: u64,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+
+        let actual_activity_id = object::id(activity);
+        assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
+
+        // 僅主辦人可揭露答案
+        if (caller != activity.organizer) {
+            abort E_NOT_ORGANIZER;
+        };
+
+        if (game.activity_id != activity_id) {
+            abort E_GAME_NOT_FOUND;
+        };
+
+        if (game.status != GameStatus::OPEN) {
+            abort E_GAME_NOT_OPEN;
+        };
+
+        if (correct_option < 1 || correct_option > 4) {
+            abort E_INVALID_GAME_CHOICE;
+        };
+
+        // TODO(規格差異)：
+        // 依據規格，這裡應遍歷所有 GameParticipation 物件，根據 choice 是否等於 correct_option
+        // 來更新 participation.is_correct 並累計 game.total_correct。
+        // 在目前的物件模型下缺乏對 Participation 的鏈上索引，無法在模組內完成這個迴圈，
+        // 因此 total_correct 與 is_correct 的更新暫不在此實作。
+        //
+        // SINGLE 模式下 winner_addr 也應從所有答對的參與者中隨機挑選，
+        // 目前同樣因缺乏索引而無法完整實作，先保留 winner_addr 為 None。
+        // 之後若擴充儲存結構，會再補齊此部分邏輯。
+
+        game.correct_option = option::some<u8>(correct_option);
+        game.status = GameStatus::ANSWER_REVEALED;
+
+        event::emit(GameAnswerRevealedEvent {
+            activity_id,
+            game_id,
+            correct_option,
+        });
+    }
+
+    public entry fun claim_game_reward(
+        activity_id: ID,
+        activity: &mut Activity,
+        game_id: ID,
+        game: &mut Game,
+        participation: &mut GameParticipation,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+
+        // 基本關聯檢查
+        if (participation.owner != caller) {
+            abort E_NOT_GAME_WINNER;
+        };
+        if (participation.game_id != game_id) {
+            abort E_GAME_NOT_FOUND;
+        };
+        if (game.activity_id != activity_id) {
+            abort E_GAME_NOT_FOUND;
+        };
+
+        if (game.status != GameStatus::ANSWER_REVEALED) {
+            abort E_GAME_NOT_ANSWER_REVEALED;
+        };
+
+        if (participation.has_claimed_reward) {
+            abort E_GAME_REWARD_ALREADY_CLAIMED;
+        };
+
+        // 必須已有正確答案
+        if (!option::is_some<u8>(&game.correct_option)) {
+            abort E_GAME_NOT_ANSWER_REVEALED;
+        };
+        let correct_ref = option::borrow<u8>(&game.correct_option);
+        if (participation.choice != *correct_ref) {
+            abort E_NOT_GAME_WINNER;
+        };
+
+        // 標記為答對
+        participation.is_correct = true;
+
+        let mut amount = 0;
+        if (game.reward_mode == GameRewardMode::AVERAGE) {
+            // 規格上應使用 total_correct 做平均分配。
+            // 由於 reveal 階段尚未能統計 total_correct，這裡若為 0 則視為沒有其他得獎者，
+            // 直接給予全額 reward_amount，避免除以零。
+            let total = game.total_correct;
+            if (total == 0) {
+                amount = game.reward_amount;
+            } else {
+                amount = game.reward_amount / total;
+            }
+        } else {
+            // SINGLE 模式：僅 winner_addr 可領取
+            if (!option::is_some<address>(&game.winner_addr)) {
+                abort E_NOT_GAME_WINNER;
+            };
+            let winner_ref = option::borrow<address>(&game.winner_addr);
+            if (*winner_ref != caller) {
+                abort E_NOT_GAME_WINNER;
+            };
+            amount = game.reward_amount;
+        };
+
+        if (activity.prize_pool_coin.value < amount) {
+            abort E_INSUFFICIENT_PRIZE_POOL;
+        };
+
+        activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
+        let coin_out = Coin<IOTA> { value: amount };
+
+        participation.has_claimed_reward = true;
+
+        deposit_iota(caller, coin_out);
+
+        event::emit(GameRewardClaimedEvent {
+            activity_id,
+            game_id,
+            participant_addr: caller,
+            amount,
+        });
+    }
+
     public entry fun draw_prize(
         activity_id: ID,
         activity: &mut Activity,

@@ -286,3 +286,336 @@ Final requirement:
 Output:
 - Return the FULL content of `contracts/tests/lottery_tests.move` as a single complete code block.
 ```
+
+## ✅ Codex Prompt：Step 5 – 四選一遊戲實作 + 測試
+
+```
+Goal:
+Implement **Step 5 — Game System** inside `contracts/sources/annual_party.move`
+and generate a full test suite `contracts/tests/game_tests.move`.
+
+This Step includes:
+
+  1. create_game
+  2. submit_choice
+  3. reveal_game_answer
+  4. claim_game_reward
+
+FOLLOW EXACTLY the [SPEC.md](SPEC.md) semantics.
+
+==============================================================
+PART A — Implementation Requirements
+==============================================================
+
+Modify ONLY `contracts/sources/annual_party.move`.
+
+--------------------------------------------------------------
+STRUCTS REMAIN THE SAME:
+--------------------------------------------------------------
+Game {
+    id: UID,
+    activity_id: ID,
+    status: GameStatus,
+    question: String,
+    options: vector<String>,     // exactly 4 items
+    reward_amount: u64,
+    reward_mode: GameRewardMode, // SINGLE / AVERAGE
+    correct_option: option<u8>,  // None → unrevealed; Some(1~4)
+    total_correct: u64,
+    winner_addr: option<address> // used only when reward_mode = SINGLE
+}
+
+GameParticipation {
+    id: UID,
+    game_id: ID,
+    activity_id: ID,
+    owner: address,
+    choice: u8,
+    is_correct: bool,
+    has_claimed_reward: bool,
+}
+
+--------------------------------------------------------------
+ENTRY FUNCTION 1: create_game
+--------------------------------------------------------------
+
+Signature:
+public entry fun create_game(
+    activity_id: ID,
+    activity: &mut Activity,
+    question: String,
+    options: vector<String>, // must be length 4
+    reward_amount: u64,
+    mode: GameRewardMode,
+    ctx: &mut TxContext
+)
+
+Rules:
+
+1. Validate caller == activity.organizer.
+2. Validate activity.status != CLOSED.
+3. If activity.current_game_id exists:
+     - Load the referenced Game object.
+     - If the Game.status == OPEN or ANSWER_REVEALED:
+           set old_game.status = CLOSED.
+4. Validate vector::length(options) == 4, else abort(E_INVALID_GAME_CHOICE).
+5. Validate activity.prize_pool_coin.value >= reward_amount, else abort(E_INSUFFICIENT_PRIZE_POOL).
+6. Create new Game object with:
+       status = OPEN
+       question = question
+       options = options
+       reward_amount = reward_amount
+       reward_mode = mode
+       correct_option = None
+       total_correct = 0
+       winner_addr = None
+7. Set activity.current_game_id = Some(game_id).
+8. Do NOT split the reward yet — keep reward_amount stored as number.
+9. transfer::share_object(game);
+10. Emit GameCreatedEvent.
+
+--------------------------------------------------------------
+ENTRY FUNCTION 2: submit_choice
+--------------------------------------------------------------
+
+Signature:
+public entry fun submit_choice(
+    activity_id: ID,
+    activity: &Activity,
+    game_id: ID,
+    game: &mut Game,
+    choice: u8,
+    ctx: &mut TxContext
+)
+
+Rules:
+
+1. caller = tx_context::sender(ctx)
+2. Validate game.activity_id == activity_id == activity.id.
+3. Validate game.status == OPEN.
+4. Validate choice ∈ {1,2,3,4}.
+5. Validate caller has joined activity:
+      caller ∈ activity.participants.
+6. Validate this user has NOT submitted a choice before:
+      There must be NO GameParticipation object for (game_id, caller).
+7. Create GameParticipation object:
+       game_id
+       activity_id
+       owner = caller
+       choice = choice
+       is_correct = false
+       has_claimed_reward = false
+8. transfer::share_object(participation);
+
+--------------------------------------------------------------
+ENTRY FUNCTION 3: reveal_game_answer
+--------------------------------------------------------------
+
+Signature:
+public entry fun reveal_game_answer(
+    activity_id: ID,
+    activity: &Activity,
+    game_id: ID,
+    game: &mut Game,
+    correct_option: u8,
+    client_seed: u64,
+    ctx: &mut TxContext
+)
+
+Rules:
+
+1. caller must equal activity.organizer.
+2. Validate game.status == OPEN.
+3. Validate correct_option ∈ {1,2,3,4}.
+4. Iterate all GameParticipation objects for this game:
+      If participation.choice == correct_option:
+            participation.is_correct = true
+            increment game.total_correct
+5. If game.reward_mode == AVERAGE:
+      - Nothing else now; each winner will receive reward_amount / total_correct during claim_game_reward.
+6. If mode == SINGLE:
+      - If total_correct == 0 → NO winner, so game.winner_addr = None.
+      - Else:
+            Pick a winner using SAME RNG pattern as draw_prize:
+                random_u64 = sha3_256(block_hash || tx_hash || caller || client_seed)
+                index = random_u64 % number_of_correct_participants
+            winner_addr = correct_participants[index]
+            game.winner_addr = Some(winner_addr)
+7. Set game.correct_option = Some(correct_option)
+8. Set game.status = ANSWER_REVEALED
+9. Emit GameAnswerRevealedEvent.
+
+--------------------------------------------------------------
+ENTRY FUNCTION 4: claim_game_reward
+--------------------------------------------------------------
+
+Signature:
+public entry fun claim_game_reward(
+    activity_id: ID,
+    activity: &mut Activity,
+    game_id: ID,
+    game: &mut Game,
+    participation: &mut GameParticipation,
+    ctx: &mut TxContext
+)
+
+Rules:
+
+1. caller = tx_context::sender(ctx)
+2. Validate:
+     participation.owner == caller
+     participation.game_id == game_id
+     game.activity_id == activity_id
+3. Validate game.status == ANSWER_REVEALED, else abort(E_GAME_NOT_ANSWER_REVEALED).
+4. Validate participation.is_correct == true, else abort(E_NOT_GAME_WINNER).
+5. Validate participation.has_claimed_reward == false, else abort(E_GAME_REWARD_ALREADY_CLAIMED).
+6. Determine reward:
+     If mode == AVERAGE:
+         amount = reward_amount / total_correct
+     If mode == SINGLE:
+         amount = reward_amount only if caller == game.winner_addr
+         else abort(E_NOT_GAME_WINNER)
+7. Validate activity.prize_pool_coin.value >= amount, else abort(E_INSUFFICIENT_PRIZE_POOL)
+8. Perform:
+     activity.prize_pool_coin.value -= amount
+     coin_out = Coin<IOTA>{ value: amount }
+     deposit_iota(caller, coin_out)
+9. participation.has_claimed_reward = true
+10. Emit GameRewardClaimedEvent.
+
+```
+
+## Test suite for Step 5
+
+```
+Goal: Test suite for Step 5
+
+Create file: `contracts/tests/game_tests.move`
+
+Implement **at least** the following test functions using #[test] and #[expected_failure]:
+
+--------------------------------------------------------------
+1. test_create_game_success
+--------------------------------------------------------------
+- Create Activity with organizer @0x1.
+- Call create_game with:
+      question = "Q1"
+      options = ["A","B","C","D"]
+      reward_amount = 100
+      mode = GameRewardMode::AVERAGE
+- Assertions:
+      activity.current_game_id is Some(id)
+      game.status == OPEN
+      game.reward_amount == 100
+
+--------------------------------------------------------------
+2. test_create_game_overwrites_previous_open_game
+--------------------------------------------------------------
+Scenario:
+- First create Game A (OPEN)
+- Then create Game B
+- Assert:
+    - Game A.status == CLOSED
+    - Game B.status == OPEN
+
+--------------------------------------------------------------
+3. test_submit_choice_success
+--------------------------------------------------------------
+- Create Activity with participants [@0x2, @0x3]
+- Create a Game
+- signer @0x2 calls submit_choice(game_id, choice=1)
+- Assertions:
+      A GameParticipation is created:
+         owner == @0x2
+         choice == 1
+         is_correct == false
+         has_claimed_reward == false
+
+--------------------------------------------------------------
+4. test_submit_choice_twice_fails
+--------------------------------------------------------------
+- @0x2 submits choice once.
+- @0x2 submits again.
+- Expect abort(E_ALREADY_SUBMITTED_CHOICE)
+
+--------------------------------------------------------------
+5. test_submit_choice_not_in_activity_fails
+--------------------------------------------------------------
+- participants = [@0x2]
+- signer @0x8 tries to submit_choice.
+- Expect abort(E_NO_PARTICIPANTS) or correct defined error.
+
+--------------------------------------------------------------
+6. test_reveal_answer_average_success
+--------------------------------------------------------------
+- participants = [@0x2, @0x3, @0x4]
+- All submit choices.
+- correct_option = 2
+- reveal_game_answer
+- Assertions:
+       game.status == ANSWER_REVEALED
+       game.total_correct == number of correct participants
+       correct participants have is_correct = true
+
+--------------------------------------------------------------
+7. test_reveal_answer_single_success_with_random_winner
+--------------------------------------------------------------
+- Same as above but mode = SINGLE.
+- correct participants = at least 2
+- reveal_game_answer chooses 1 winner.
+- Assert:
+      game.status == ANSWER_REVEALED
+      game.winner_addr is Some(addr)
+      only 1 winner
+
+--------------------------------------------------------------
+8. test_claim_reward_average_success
+--------------------------------------------------------------
+- reward_amount = 90
+- 3 correct participants
+- each receives 30
+- Validate activity.prize_pool decreases correctly
+- Validate participation.has_claimed_reward flips to true
+
+--------------------------------------------------------------
+9. test_claim_reward_single_success
+--------------------------------------------------------------
+- SINGLE mode
+- verify that only winner can claim
+- non-winner must abort(E_NOT_GAME_WINNER)
+
+--------------------------------------------------------------
+10. test_claim_reward_twice_fails
+--------------------------------------------------------------
+- winner calls claim_game_reward twice
+- second call aborts with E_GAME_REWARD_ALREADY_CLAIMED
+
+--------------------------------------------------------------
+11. test_claim_reward_game_not_answer_revealed
+--------------------------------------------------------------
+- try claim before reveal_game_answer
+- expect abort(E_GAME_NOT_ANSWER_REVEALED)
+
+==============================================================
+RULES:
+==============================================================
+
+- NO registry objects.
+- Must clean up UIDs at the end of tests.
+- Tests must use:
+    iota::tx_context::{dummy, new_from_hint}
+    object::new
+    transfer::share_object
+- All entry functions must compile + pass tests under `iota move test`.
+
+==============================================================
+OUTPUT:
+==============================================================
+
+Return TWO complete files:
+
+1. FULL updated `contracts/sources/annual_party.move`
+2. FULL `contracts/tests/game_tests.move`
+
+Both MUST be fully formed code blocks.
+```
