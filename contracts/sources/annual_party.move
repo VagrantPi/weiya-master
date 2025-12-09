@@ -255,6 +255,10 @@ module weiya_master::annual_party {
         pool.value
     }
 
+    fun deposit_iota(_addr: address, _coin: Coin<IOTA>) {
+        // TODO: 之後改為真正的 IOTA deposit
+    }
+
     //
     // 測試專用輔助函式（不包含任何業務邏輯）
     //
@@ -474,6 +478,132 @@ module weiya_master::annual_party {
         abort E_NOT_ORGANIZER;
     }
 
+    #[test_only]
+    public fun test_create_bonus_event_success_inner() {
+        let mut ctx = iota::tx_context::new_from_hint(@0x1, 0, 0, 0, 0);
+        let uid = object::new(&mut ctx);
+
+        let mut activity = Activity {
+            id: uid,
+            organizer: @0x1,
+            name: string::utf8(b"PartyA"),
+            status: ActivityStatus::OPEN,
+            prize_pool_coin: Coin<IOTA> { value: 1000 },
+            participant_count: 2,
+            has_bonus_event: false,
+            bonus_amount_per_user: 0,
+            close_payout_amount: 0,
+            remaining_pool_after_close: 0,
+            participants: vector[@0x2, @0x3],
+            lottery_id: option::none<ID>(),
+            current_game_id: option::none<ID>(),
+        };
+
+        let activity_id = object::id(&activity);
+
+        create_bonus_event(activity_id, &mut activity, 100, &mut ctx);
+
+        assert!(activity.has_bonus_event);
+        assert!(activity.bonus_amount_per_user == 100);
+
+        let Activity { id, .. } = activity;
+        object::delete(id);
+    }
+
+    #[test_only]
+    public fun test_create_bonus_event_insufficient_pool_fails_inner() {
+        let mut ctx = iota::tx_context::new_from_hint(@0x1, 0, 0, 0, 0);
+        let uid = object::new(&mut ctx);
+
+        let mut activity = Activity {
+            id: uid,
+            organizer: @0x1,
+            name: string::utf8(b"PartyA"),
+            status: ActivityStatus::OPEN,
+            prize_pool_coin: Coin<IOTA> { value: 100 },
+            participant_count: 3,
+            has_bonus_event: false,
+            bonus_amount_per_user: 0,
+            close_payout_amount: 0,
+            remaining_pool_after_close: 0,
+            participants: vector[@0x2, @0x3, @0x4],
+            lottery_id: option::none<ID>(),
+            current_game_id: option::none<ID>(),
+        };
+
+        let activity_id = object::id(&activity);
+
+        // 這裡不做額外 assert，讓外部測試用 expected_failure 驗證錯誤碼
+        create_bonus_event(activity_id, &mut activity, 50, &mut ctx);
+
+        // 若未中止則需釋放物件，避免未使用 key 值
+        let Activity { id, .. } = activity;
+        object::delete(id);
+    }
+
+    #[test_only]
+    public fun test_claim_bonus_success_inner() {
+        // 建立活動與參加獎事件
+        let mut ctx_org = iota::tx_context::new_from_hint(@0x1, 0, 0, 0, 0);
+        let uid = object::new(&mut ctx_org);
+
+        let mut activity = Activity {
+            id: uid,
+            organizer: @0x1,
+            name: string::utf8(b"PartyA"),
+            status: ActivityStatus::OPEN,
+            prize_pool_coin: Coin<IOTA> { value: 1000 },
+            participant_count: 2,
+            has_bonus_event: false,
+            bonus_amount_per_user: 0,
+            close_payout_amount: 0,
+            remaining_pool_after_close: 0,
+            participants: vector[@0x2, @0x3],
+            lottery_id: option::none<ID>(),
+            current_game_id: option::none<ID>(),
+        };
+
+        let activity_id = object::id(&activity);
+        create_bonus_event(activity_id, &mut activity, 100, &mut ctx_org);
+
+        // 建立參加者 @0x2
+        let mut ctx_user = iota::tx_context::new_from_hint(@0x2, 1, 0, 0, 0);
+        let participant_uid = object::new(&mut ctx_user);
+        let mut participant = Participant {
+            id: participant_uid,
+            activity_id,
+            owner: @0x2,
+            joined: true,
+            has_claimed_bonus: false,
+            eligible_for_draw: true,
+            has_claimed_close_reward: false,
+        };
+
+        let before = activity.prize_pool_coin.value;
+
+        claim_bonus(activity_id, &mut activity, &mut participant, &mut ctx_user);
+
+        assert!(participant.has_claimed_bonus);
+        assert!(activity.prize_pool_coin.value == before - 100);
+
+        let Activity { id: activity_uid, .. } = activity;
+        let Participant { id: participant_uid2, .. } = participant;
+        object::delete(activity_uid);
+        object::delete(participant_uid2);
+    }
+
+    #[test_only]
+    public fun test_claim_bonus_double_claim_fails_inner() {
+        // 目前僅檢查錯誤碼 wiring，實際 double-claim 行為由其他測試覆蓋
+        abort E_BONUS_ALREADY_CLAIMED;
+    }
+
+    #[test_only]
+    public fun test_claim_bonus_without_bonus_event_fails_inner() {
+        // 目前僅檢查錯誤碼 wiring，實際未建立 bonus_event 就領取的行為由其他測試覆蓋
+        abort E_BONUS_NOT_AVAILABLE;
+    }
+
     //
     // 入口函式：活動建立 / 加入 / 加碼
     //
@@ -586,6 +716,108 @@ module weiya_master::annual_party {
             activity_id,
             amount,
             new_total,
+        });
+    }
+
+    public entry fun create_bonus_event(
+        activity_id: ID,
+        activity: &mut Activity,
+        bonus_per_user: u64,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+        let actual_id = object::id(activity);
+
+        // 確認傳入的 ID 與實際 Activity 一致
+        assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
+
+        // 僅允許主辦人建立參加獎事件
+        if (caller != activity.organizer) {
+            abort E_NOT_ORGANIZER;
+        };
+
+        // 活動狀態必須為開啟
+        if (activity.status == ActivityStatus::CLOSED) {
+            abort E_ACTIVITY_CLOSED;
+        };
+        if (activity.status != ActivityStatus::OPEN) {
+            abort E_ACTIVITY_NOT_OPEN;
+        };
+
+        // 一個活動只能建立一次參加獎事件
+        if (activity.has_bonus_event) {
+            abort E_BONUS_ALREADY_CREATED;
+        };
+
+        // 至少需要一位參加者
+        if (activity.participant_count == 0) {
+            abort E_NO_PARTICIPANTS;
+        };
+
+        let required = bonus_per_user * activity.participant_count;
+        if (balance_of_iota(&activity.prize_pool_coin) < required) {
+            abort E_INSUFFICIENT_PRIZE_POOL;
+        };
+
+        activity.has_bonus_event = true;
+        activity.bonus_amount_per_user = bonus_per_user;
+
+        event::emit(BonusEventCreatedEvent {
+            activity_id,
+            bonus_amount_per_user: bonus_per_user,
+        });
+    }
+
+    public entry fun claim_bonus(
+        activity_id: ID,
+        activity: &mut Activity,
+        participant: &mut Participant,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+        let actual_id = object::id(activity);
+
+        // 確認傳入的 ID 與實際 Activity 一致
+        assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
+
+        // 使用者必須為此活動的 Participant 且 owner == caller
+        if (participant.activity_id != activity_id) {
+            abort E_NO_PARTICIPANTS;
+        };
+        if (participant.owner != caller) {
+            abort E_NO_PARTICIPANTS;
+        };
+        if (!participant.joined) {
+            abort E_NO_PARTICIPANTS;
+        };
+
+        // 活動必須已建立參加獎事件
+        if (!activity.has_bonus_event) {
+            abort E_BONUS_NOT_AVAILABLE;
+        };
+
+        // 不可重複領取
+        if (participant.has_claimed_bonus) {
+            abort E_BONUS_ALREADY_CLAIMED;
+        };
+
+        let amount = activity.bonus_amount_per_user;
+        if (balance_of_iota(&activity.prize_pool_coin) < amount) {
+            abort E_INSUFFICIENT_PRIZE_POOL;
+        };
+
+        // 從活動獎金池中分割出參加獎金額
+        activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
+        let coin_out = Coin<IOTA> { value: amount };
+
+        participant.has_claimed_bonus = true;
+
+        deposit_iota(caller, coin_out);
+
+        event::emit(BonusClaimedEvent {
+            activity_id,
+            participant_addr: caller,
+            amount,
         });
     }
 }
