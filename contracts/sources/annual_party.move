@@ -4,6 +4,8 @@ module weiya_master::annual_party {
     use iota::tx_context::TxContext;
     use iota::event;
     use iota::transfer;
+    use std::bcs;
+    use std::hash;
     use std::string;
 
     //
@@ -719,6 +721,10 @@ module weiya_master::annual_party {
         });
     }
 
+    //
+    // 入口函式：參加獎 / 單次抽獎
+    //
+
     public entry fun create_bonus_event(
         activity_id: ID,
         activity: &mut Activity,
@@ -817,6 +823,72 @@ module weiya_master::annual_party {
         event::emit(BonusClaimedEvent {
             activity_id,
             participant_addr: caller,
+            amount,
+        });
+    }
+
+    // TODO(規格差異)：目前無法在模組內直接索引對應的 Participant 物件，
+    // 無法更新 on-chain 的 eligible_for_draw，之後需補上參與者索引機制。
+    public entry fun draw_prize(
+        activity_id: ID,
+        activity: &mut Activity,
+        amount: u64,
+        client_seed: u64,
+        ctx: &mut TxContext,
+    ) {
+        let organizer_addr = iota::tx_context::sender(ctx);
+        let actual_id = object::id(activity);
+
+        // 確認 Activity ID
+        assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
+
+        // 僅 organizer 可呼叫
+        if (organizer_addr != activity.organizer) {
+            abort E_NOT_ORGANIZER;
+        };
+
+        // 獎金池餘額檢查
+        if (balance_of_iota(&activity.prize_pool_coin) < amount) {
+            abort E_INSUFFICIENT_PRIZE_POOL;
+        };
+
+        let participants_len = vector::length(&activity.participants);
+        if (participants_len == 0) {
+            abort E_NO_ELIGIBLE_FOR_DRAW;
+        };
+
+        // 隨機數：hash(tx_digest || organizer_addr || client_seed)
+        let tx_digest_ref = iota::tx_context::digest(ctx);
+        let mut data = bcs::to_bytes(tx_digest_ref);
+        let mut sender_bytes = bcs::to_bytes(&organizer_addr);
+        let mut seed_bytes = bcs::to_bytes(&client_seed);
+        vector::append(&mut data, sender_bytes);
+        vector::append(&mut data, seed_bytes);
+
+        let hash_bytes = hash::sha3_256(data);
+
+        // 取前 8 bytes 轉成 u64
+        let mut i = 0;
+        let mut random_u64 = 0;
+        while (i < 8) {
+            random_u64 = (random_u64 << 8) + (hash_bytes[i] as u64);
+            i = i + 1;
+        };
+
+        let idx = random_u64 % participants_len;
+        let winner_addr = activity.participants[idx];
+
+        // 目前僅使用 Activity.participants 作為候選池，未實作 eligible_for_draw 掃描
+
+        // 從獎金池分出 prize
+        activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
+        let coin_out = Coin<IOTA> { value: amount };
+
+        deposit_iota(winner_addr, coin_out);
+
+        event::emit(PrizeDrawExecutedEvent {
+            activity_id,
+            winner_addr,
             amount,
         });
     }

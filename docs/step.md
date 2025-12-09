@@ -222,6 +222,189 @@ Output:
 Return the FULL updated `annual_party.move` file in one complete code block.
 ```
 
+## ✅ Codex Prompt：Step 2 – Bonus Tests
 
+```
+Create a new file: `contracts/tests/bonus_tests.move`.
 
+Implement the following tests, fully matching the behavior in [SPEC.md](SPEC.md) .
 
+1. test_create_bonus_event_success
+   - organizer @0x1 creates activity with prize_pool = 1000.
+   - @0x2, @0x3 join the activity.
+   - call create_bonus_event(activity_id, 100).
+   - assert:
+        activity.has_bonus_event == true
+        activity.bonus_amount_per_user == 100
+
+2. test_create_bonus_event_insufficient_pool_fails
+   - prize_pool only has 100.
+   - 3 participants join.
+   - bonus_per_user = 50 → required = 150.
+   - create_bonus_event must abort with E_INSUFFICIENT_PRIZE_POOL.
+
+3. test_claim_bonus_success
+   - activity with 2 participants.
+   - bonus_per_user = 100.
+   - @0x2 calls claim_bonus.
+   - assert:
+        participant.has_claimed_bonus == true
+        prize_pool_coin reduced by exactly 100
+        user @0x2 receives 100 IOTA
+
+4. test_claim_bonus_double_claim_fails
+   - @0x2 claims first time OK.
+   - second claim must abort with correct error code.
+
+5. test_claim_bonus_without_bonus_event_fails
+   - no create_bonus_event was called.
+   - claim_bonus should abort.
+
+------------------------------------
+Rules:
+------------------------------------
+- Use Move test signers (@0x1, @0x2, @0x3).
+- Validate object fields precisely.
+- Tests must pass under `iota move test`.
+
+------------------------------------
+Output:
+------------------------------------
+Return the FULL file `bonus_tests.move` in one complete code block.
+```
+
+## ✅ Codex Prompt：Step 3 – 實作 draw_prize（抽獎）
+
+```
+You are Codex working on the Move project defined by [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md) .
+
+Goal:
+Implement Step 3 — draw_prize — inside `contracts/sources/annual_party.move`
+
+------------------------------------
+Implement the following entry function:
+------------------------------------
+
+public entry fun draw_prize(
+    organizer: &signer,
+    activity_id: ID,
+    amount: u64,
+    client_seed: u64
+)
+
+Function requirements (follow [SPEC.md](SPEC.md) EXACTLY):
+
+1. Organizer-only
+   - signer::address_of(organizer) must equal activity.organizer
+   - Otherwise abort(E_NOT_ORGANIZER)
+
+2. Activity & participant validation
+   - Load Activity as shared object.
+   - activity.prize_pool_coin must contain >= amount.
+   - There must be at least one participant with eligible_for_draw == true.
+   - Use the Activity.participants vector as the candidate pool.
+
+3. Random selection (simplified deterministic hash model)
+   - Compute:
+       random_u64 = hash(block_hash || tx_hash || signer_addr || client_seed)
+       idx = random_u64 % participants.length
+   - If the selected participant's eligible flag is false:
+       - Perform a simple linear scan forward (wrapping around with modulo)
+       - Choose the first participant whose eligible_for_draw == true.
+       - If none exist → abort(E_NO_ELIGIBLE_FOR_DRAW)
+
+4. Winner handling
+   - Let winner_addr = participants[idx]
+   - Load the corresponding Participant object.
+   - Set participant.eligible_for_draw = false
+
+5. Payout
+   - Split `amount` out of activity.prize_pool_coin
+   - Deposit the split coins into winner_addr
+
+6. Event
+   - Emit PrizeDrawExecuted(activity_id, winner_addr, amount)
+
+------------------------------------
+Coding rules:
+------------------------------------
+- DO NOT break Step 0/1/2 functions.
+- Use the SAME field names as in [SPEC.md](SPEC.md) .
+- Do NOT redesign data structures.
+- Use existing error constants.
+- Fully compile under `iota move test`.
+
+------------------------------------
+Output:
+------------------------------------
+Return the FULL updated `annual_party.move` module as ONE complete code block.
+```
+
+## ✅ Codex Prompt：Step 3 – Test Suite（抽獎）
+
+```
+Create new test file: `contracts/tests/draw_tests.move`.
+
+Implement ALL the following tests exactly:
+
+--------------------------------------------------
+1. test_draw_prize_success
+--------------------------------------------------
+Scenario:
+- @0x1 organizer creates activity with initial_amount = 500.
+- @0x2, @0x3, @0x4 join the activity.
+- All participants should have eligible_for_draw == true.
+- Organizer calls draw_prize(activity_id, 100, client_seed=1).
+
+Assertions:
+- Exactly ONE participant becomes eligible_for_draw == false.
+- prize_pool_coin decreases by exactly 100.
+- Winner's balance increases by 100.
+- Event PrizeDrawExecuted is emitted.
+
+--------------------------------------------------
+2. test_draw_prize_no_eligible_participants_fails
+--------------------------------------------------
+Scenario:
+- Organizer creates activity.
+- Two participants join.
+- Manually set BOTH participant.eligible_for_draw = false.
+- draw_prize should abort with E_NO_ELIGIBLE_FOR_DRAW.
+
+--------------------------------------------------
+3. test_draw_prize_insufficient_pool_fails
+--------------------------------------------------
+Scenario:
+- Prize pool = 50
+- draw_prize(..., amount=100) should abort with E_INSUFFICIENT_PRIZE_POOL
+
+--------------------------------------------------
+4. test_draw_prize_wrong_caller_fails
+--------------------------------------------------
+Scenario:
+- @0x2 tries to call draw_prize on an activity created by @0x1.
+- Must abort with E_NOT_ORGANIZER.
+
+--------------------------------------------------
+5. test_draw_prize_linear_scan_selects_next_eligible
+--------------------------------------------------
+Scenario:
+- Participants: [@0x2, @0x3, @0x4]
+- Suppose the random index chosen is @0x2
+- Set @0x2.eligible_for_draw = false beforehand
+- draw_prize should select @0x3 as winner (the next eligible)
+- Validate payout and Eligible flag changes.
+
+--------------------------------------------------
+Rules:
+--------------------------------------------------
+- Use Move test signers @0x1, @0x2, @0x3, @0x4.
+- Follow object-based model exactly.
+- Tests MUST pass `iota move test`.
+
+--------------------------------------------------
+Output:
+--------------------------------------------------
+Return the FULL contents of `draw_tests.move` as one complete code block.
+
+```
