@@ -3,9 +3,8 @@ module weiya_master::annual_party {
     use iota::object::{ID, UID};
     use iota::tx_context::TxContext;
     use iota::event;
+    use iota::random::{Self as random, Random};
     use iota::transfer;
-    use std::bcs;
-    use std::hash;
     use std::string;
 
     //
@@ -590,6 +589,7 @@ module weiya_master::annual_party {
         lottery_id: ID,
         activity: &mut Activity,
         lottery: &mut Lottery,
+        rand: &Random,
         client_seed: u64,
         ctx: &mut TxContext,
     ) {
@@ -621,25 +621,9 @@ module weiya_master::annual_party {
             abort E_LOTTERY_NO_PARTICIPANTS;
         };
 
-        // 隨機數：hash(tx_digest || organizer_addr || client_seed)
-        let tx_digest_ref = iota::tx_context::digest(ctx);
-        let mut data = bcs::to_bytes(tx_digest_ref);
-        let mut sender_bytes = bcs::to_bytes(&organizer_addr);
-        let mut seed_bytes = bcs::to_bytes(&client_seed);
-        vector::append(&mut data, sender_bytes);
-        vector::append(&mut data, seed_bytes);
-
-        let hash_bytes = hash::sha3_256(data);
-
-        // 取前 8 bytes 轉成 u64
-        let mut digest_index: u64 = 0;
-        let mut random_u64 = 0;
-        while (digest_index < 8) {
-            random_u64 = (random_u64 << 8) + (hash_bytes[digest_index] as u64);
-            digest_index = digest_index + 1;
-        };
-
-        let start = random_u64 % n;
+        // 使用 IOTA random 模組產生亂數（client_seed 僅作為 API 相容保留參數）
+        let mut gen = random::new_generator(rand, ctx);
+        let start = random::generate_u64_in_range(&mut gen, 0, (n - 1));
 
         let winner_addr = lottery.participants[start];
 
@@ -1063,6 +1047,7 @@ module weiya_master::annual_party {
     public entry fun draw_prize(
         activity_id: ID,
         activity: &mut Activity,
+        rand: &Random,
         amount: u64,
         client_seed: u64,
         ctx: &mut TxContext,
@@ -1101,25 +1086,9 @@ module weiya_master::annual_party {
             abort E_NO_ELIGIBLE_FOR_DRAW;
         };
 
-        // 隨機數：hash(tx_digest || organizer_addr || client_seed)
-        let tx_digest_ref = iota::tx_context::digest(ctx);
-        let mut data = bcs::to_bytes(tx_digest_ref);
-        let mut sender_bytes = bcs::to_bytes(&organizer_addr);
-        let mut seed_bytes = bcs::to_bytes(&client_seed);
-        vector::append(&mut data, sender_bytes);
-        vector::append(&mut data, seed_bytes);
-
-        let hash_bytes = hash::sha3_256(data);
-
-        // 取前 8 bytes 轉成 u64
-        let mut j = 0;
-        let mut random_u64 = 0;
-        while (j < 8) {
-            random_u64 = (random_u64 << 8) + (hash_bytes[j] as u64);
-            j = j + 1;
-        };
-
-        let start = random_u64 % n;
+        // 使用 IOTA random 模組產生亂數（client_seed 僅作為 API 相容保留參數）
+        let mut gen = random::new_generator(rand, ctx);
+        let start = random::generate_u64_in_range(&mut gen, 0, (n - 1));
 
         // 以圓形線性掃描方式尋找第一個 eligible_flags 為 true 的索引
         let mut offset = 0;

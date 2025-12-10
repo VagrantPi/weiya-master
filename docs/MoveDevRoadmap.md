@@ -265,7 +265,7 @@ iota move test
 
 ### 3-1：實作功能
 
-`public entry fun draw_prize(organizer, activity_id, amount: u64, client_seed: u64)`
+`public entry fun draw_prize(organizer, activity_id, amount: u64, client_seed: u64, rand: &iota::random::Random)`
 
 邏輯：
 
@@ -276,8 +276,8 @@ iota move test
   * 至少有一位 participant 的 `eligible_for_draw == true`
 * random：
 
-  * 用 `hash(block_hash || tx_hash || caller || client_seed)` 產生 u64
-  * 對 `activity.participants.length` 取 mod → index
+  * 透過 `iota::random::Random` 建立 generator 產生亂數
+  * 對 `activity.participants.length` 取範圍內亂數 index
   * 找到 `winner_addr`
   * 找對應 Participant，若 `eligible_for_draw == false`：
 
@@ -345,12 +345,12 @@ iota move test
    * push user_addr 至 participants
    * emit `LotteryJoined`
 
-3. `public entry fun execute_lottery(organizer, activity_id, client_seed: u64)`
+3. `public entry fun execute_lottery(organizer, activity_id, client_seed: u64, rand: &iota::random::Random)`
 
    * 檢查 caller == organizer
    * lottery.status == OPEN
    * participants.length > 0
-   * random index 選 winner_addr
+   * 透過 `iota::random::Random` 產生亂數 index 選 winner_addr
    * 將整顆 `lottery.pot_coin` 給 winner（split all & deposit）
    * `lottery.status = DRAWN`
    * `lottery.winner = Some(winner_addr)`
@@ -400,7 +400,7 @@ iota move test
    * 尚未有同一 `(game_id, user)` 的 participation
    * 建 `GameParticipation`（is_correct=false）
 
-3. `reveal_game_answer(organizer, activity_id, game_id, correct_option, client_seed)`
+3. `reveal_game_answer(organizer, activity_id, game_id, correct_option, client_seed, rand: &iota::random::Random)`
 
    * caller 是 organizer
    * game.status == OPEN
@@ -408,7 +408,7 @@ iota move test
    * 遍歷該 game 的 participations，標記 `is_correct=true` + `total_correct++`
    * 若 `reward_mode == SINGLE`：
 
-     * 在答對者集合中 random 抽一人 → `winner_addr`
+     * 透過 `iota::random::Random` 建立 generator，從答對者集合中隨機抽一人 → `winner_addr`
    * game.status = ANSWER_REVEALED
    * emit `GameAnswerRevealed`
 

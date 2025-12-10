@@ -330,11 +330,11 @@ struct GameParticipation has key {
    - `activity.eligible_flags` 中至少有一個 `true`（表示尚有可被抽中的參加者）
 
 2. 隨機流程（以 Activity 自己的 participants / eligible_flags 為基礎）：
-   - 計算隨機數：
-     - `random_u64 = hash(block_hash || tx_hash || caller || client_seed)`
-   - 設：
-     - `n = activity.participants.length`
-     - `start = random_u64 % n`
+   - 使用 IOTA 提供的亂數模組：
+     - entry function 接收 `rand: &iota::random::Random`
+     - `let mut gen = random::new_generator(rand, ctx);`
+     - `let n = activity.participants.length`
+     - `let start = random::generate_u64_in_range(&mut gen, 0, n - 1);`
    - 從 `start` 開始，做一次線性掃描（可環狀模  n），找到第一個 `eligible_flags[i] == true` 的 index：
      - 若找到 index = `winner_index`：
        - `winner_addr = activity.participants[winner_index]`
@@ -399,8 +399,9 @@ struct GameParticipation has key {
    * `lottery.participants.length > 0`
 2. 隨機數：
 
-   * `random_u64 = hash(block_hash || tx_hash || caller || client_seed)`
-   * `idx = random_u64 % participants.length`
+   * 入口函式接收 `rand: &iota::random::Random`
+   * 建立亂數產生器：`let mut gen = random::new_generator(rand, ctx);`
+   * `idx = random::generate_u64_in_range(&mut gen, 0, participants.length - 1)`
 3. `winner_addr = participants[idx]`。
 4. 將 `lottery.pot_coin` **全部 transfer** 給 winner（或 `split` 全部，`pot_coin` 變為 0）。
 5. `lottery.status = DRAWN`，`lottery.winner = Some(winner_addr)`。
@@ -588,19 +589,14 @@ struct GameParticipation has key {
 所有需要隨機選人的地方（抽獎、樂透、Game SINGLE 模式），都使用統一模式：
 
 ```text
-random_u64 = hash(block_hash || tx_hash || caller || client_seed)
-index = random_u64 % N
+// 使用 IOTA random 模組產生 [0, N-1] 的亂數索引
+let mut gen = random::new_generator(rand, ctx);
+let index = random::generate_u64_in_range(&mut gen, 0, N - 1);
 ```
 
-* `block_hash`：交易所在區塊 hash（主辦不可預測）
-* `tx_hash`：該筆交易 hash
-* `caller`：呼叫者地址
-* `client_seed`：前端提供的隨機種子（增加 entropy，可供 debug）
-
-**特性：**
-
-* 主辦無法事先完全掌控結果（因為區塊與 tx hash 不可預測）。
-* 所有輸入在鏈上皆可驗證，結果可重播檢查。
+> 實作層採用 IOTA framework 的 `iota::random` 模組與鏈上 randomness state，  
+> 不再手動組合 `block_hash / tx_hash / caller / client_seed` 來雜湊出亂數。  
+> `client_seed` 僅保留於介面中做調用相容性與除錯使用，實際亂數來源由鏈上隨機狀態決定。
 
 ---
 
