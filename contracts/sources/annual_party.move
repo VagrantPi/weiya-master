@@ -913,6 +913,137 @@ module weiya_master::annual_party {
         });
     }
 
+    //
+    // 入口函式：活動關閉與結算
+    //
+
+    public entry fun close_activity(
+        activity_id: ID,
+        activity: &mut Activity,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+        let actual_id = object::id(activity);
+
+        // 確認 Activity ID
+        assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
+
+        // 僅 organizer 可關閉活動
+        if (caller != activity.organizer) {
+            abort E_NOT_ORGANIZER;
+        };
+
+        // 活動不得已是 CLOSED
+        if (activity.status == ActivityStatus::CLOSED) {
+            abort E_ACTIVITY_CLOSED;
+        };
+
+        let total = activity.prize_pool_coin.value;
+        let count = activity.participant_count;
+        let avg = total / count;
+
+        activity.close_payout_amount = avg;
+        activity.remaining_pool_after_close = total;
+        activity.status = ActivityStatus::CLOSED;
+
+        event::emit(ActivityClosedEvent {
+            activity_id,
+            close_payout_amount: avg,
+        });
+    }
+
+    public entry fun claim_close_reward(
+        activity_id: ID,
+        activity: &mut Activity,
+        participant: &mut Participant,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+        let actual_id = object::id(activity);
+
+        // 確認 Activity ID
+        assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
+
+        // 參與者必須屬於此活動且為呼叫者本人
+        if (participant.activity_id != activity_id) {
+            abort E_NO_PARTICIPANTS;
+        };
+        if (participant.owner != caller) {
+            abort E_NO_PARTICIPANTS;
+        };
+        if (!participant.joined) {
+            abort E_NO_PARTICIPANTS;
+        };
+
+        if (activity.status != ActivityStatus::CLOSED) {
+            abort E_ACTIVITY_NOT_CLOSED;
+        };
+        if (activity.close_payout_amount == 0) {
+            abort E_CLOSE_PAYOUT_ZERO;
+        };
+        if (participant.has_claimed_close_reward) {
+            abort E_CLOSE_REWARD_ALREADY_CLAIMED;
+        };
+
+        let amount = activity.close_payout_amount;
+        if (activity.prize_pool_coin.value < amount) {
+            abort E_INSUFFICIENT_PRIZE_POOL;
+        };
+
+        activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
+        activity.remaining_pool_after_close =
+            activity.remaining_pool_after_close - amount;
+
+        let coin_out = Coin<IOTA> { value: amount };
+
+        participant.has_claimed_close_reward = true;
+
+        deposit_iota(caller, coin_out);
+
+        event::emit(CloseRewardClaimedEvent {
+            activity_id,
+            participant_addr: caller,
+            amount,
+        });
+    }
+
+    public entry fun withdraw_remaining_after_close(
+        activity_id: ID,
+        activity: &mut Activity,
+        ctx: &mut TxContext,
+    ) {
+        let caller = iota::tx_context::sender(ctx);
+        let actual_id = object::id(activity);
+
+        // 確認 Activity ID
+        assert!(activity_id == actual_id, E_ACTIVITY_NOT_OPEN);
+
+        if (caller != activity.organizer) {
+            abort E_NOT_ORGANIZER;
+        };
+        if (activity.status != ActivityStatus::CLOSED) {
+            abort E_ACTIVITY_NOT_CLOSED;
+        };
+
+        let remaining = activity.prize_pool_coin.value;
+        if (remaining == 0) {
+            abort E_REMAINING_POOL_ZERO;
+        };
+
+        let coin_out = Coin<IOTA> { value: remaining };
+
+        activity.prize_pool_coin.value = 0;
+        activity.remaining_pool_after_close = 0;
+
+        deposit_iota(caller, coin_out);
+
+        event::emit(RemainingPoolWithdrawnEvent {
+            activity_id,
+            organizer: caller,
+            amount: remaining,
+        });
+    }
+
     public entry fun draw_prize(
         activity_id: ID,
         activity: &mut Activity,

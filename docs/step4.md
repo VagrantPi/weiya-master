@@ -619,3 +619,228 @@ Return TWO complete files:
 
 Both MUST be fully formed code blocks.
 ```
+
+## ✅ Codex Prompt A — Step 6 實作（close_activity / claim_close_reward / withdraw_remaining_after_close）
+
+```
+You are Codex working on the IOTA Move project defined by [SPEC.md](SPEC.md) (with eligible_flags)
+and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+
+Your task:
+Implement **Step 6 — Activity Closing & Rewards** inside:
+    contracts/sources/annual_party.move
+
+This step adds THREE entry functions:
+
+------------------------------------------------------------
+1. close_activity
+------------------------------------------------------------
+Signature:
+public entry fun close_activity(
+    organizer: &signer,
+    activity_id: ID,
+    activity: &mut Activity,
+    ctx: &mut TxContext
+)
+
+Rules (STRICTLY follow [SPEC.md](SPEC.md)):
+
+1. caller must equal activity.organizer, else abort(E_NOT_ORGANIZER)
+2. activity.status must NOT be CLOSED
+3. Compute:
+     let total = activity.prize_pool_coin.value
+     let count = activity.participant_count
+     let avg = total / count        // integer division
+4. Set:
+     activity.close_payout_amount = avg
+     activity.remaining_pool_after_close = total
+     activity.status = ActivityStatus::CLOSED
+5. Emit ActivityClosedEvent(activity_id, avg)
+
+Notes:
+- Do NOT transfer any coin yet. Reward distribution occurs in claim_close_reward.
+- No game or lottery can be created after closure.
+
+------------------------------------------------------------
+2. claim_close_reward
+------------------------------------------------------------
+Signature:
+public entry fun claim_close_reward(
+    user: &signer,
+    activity_id: ID,
+    activity: &mut Activity,
+    participant: &mut Participant,
+    ctx: &mut TxContext
+)
+
+Rules:
+
+1. caller = signer::address_of(user)
+2. Validate:
+   - participant.activity_id == activity_id
+   - participant.owner == caller
+   - participant.joined == true
+3. Validate activity.status == CLOSED else abort(E_ACTIVITY_NOT_CLOSED)
+4. Validate activity.close_payout_amount > 0 else abort(E_CLOSE_PAYOUT_ZERO)
+5. Validate participant.has_claimed_close_reward == false else abort(E_CLOSE_REWARD_ALREADY_CLAIMED)
+6. let amount = activity.close_payout_amount
+7. Validate activity.prize_pool_coin.value >= amount, else abort(E_INSUFFICIENT_PRIZE_POOL)
+8. Subtract:
+      activity.prize_pool_coin.value -= amount
+      activity.remaining_pool_after_close -= amount
+9. deposit_iota(caller, Coin<IOTA>{ value: amount })
+10. participant.has_claimed_close_reward = true
+11. Emit CloseRewardClaimedEvent(activity_id, caller, amount)
+
+------------------------------------------------------------
+3. withdraw_remaining_after_close
+------------------------------------------------------------
+Signature:
+public entry fun withdraw_remaining_after_close(
+    organizer: &signer,
+    activity_id: ID,
+    activity: &mut Activity,
+    ctx: &mut TxContext
+)
+
+Rules:
+
+1. caller must equal activity.organizer else abort(E_NOT_ORGANIZER)
+2. activity.status must be CLOSED, else abort(E_ACTIVITY_NOT_CLOSED)
+3. let remaining = activity.prize_pool_coin.value
+4. If remaining == 0 → abort(E_REMAINING_POOL_ZERO)
+5. Construct Coin<IOTA>{ value: remaining }
+6. Transfer to organizer via deposit_iota
+7. Set:
+      activity.prize_pool_coin.value = 0
+      activity.remaining_pool_after_close = 0
+8. Emit RemainingPoolWithdrawnEvent(activity_id, organizer_addr, remaining)
+
+------------------------------------------------------------
+CODING RULES
+------------------------------------------------------------
+
+- DO NOT introduce registry objects.
+- DO NOT modify Activity structure beyond these fields already defined:
+      close_payout_amount
+      remaining_pool_after_close
+- Keep all event formats identical to [SPEC.md](SPEC.md).
+- Maintain consistent style with previous Steps (1–5).
+- Ensure the file compiles with `iota move test`.
+
+------------------------------------------------------------
+OUTPUT
+------------------------------------------------------------
+Return the FULL updated:
+    contracts/sources/annual_party.move
+as a single complete code block.
+```
+
+## Codex Prompt B — Step 6 測試（close_activity_tests.move）
+
+```
+You are Codex. Create a new test file:
+
+    contracts/tests/close_activity_tests.move
+
+This file must thoroughly test Step 6 functions:
+    close_activity
+    claim_close_reward
+    withdraw_remaining_after_close
+
+============================================================
+TEST MODULE STRUCTURE
+============================================================
+
+module weiya_master::close_activity_tests { ... }
+
+Use imports:
+- use weiya_master::annual_party;
+- use iota::tx_context;
+- use iota::object;
+- use std::vector;
+- use std::string;
+
+============================================================
+TEST 1 — test_close_activity_success
+============================================================
+
+Scenario:
+1. Create an Activity with organizer @0x1 with prize_pool 300.
+2. Add 3 participants manually:
+      participants = [@0x2, @0x3, @0x4]
+      eligible_flags = [true, true, true]
+      participant_count = 3
+3. Call close_activity.
+4. Assert:
+      activity.status == CLOSED
+      activity.close_payout_amount == 100
+      activity.remaining_pool_after_close == 300
+
+============================================================
+TEST 2 — test_close_activity_wrong_caller_fails
+============================================================
+- Use signer @0x9
+- Expect abort(E_NOT_ORGANIZER)
+
+============================================================
+TEST 3 — test_claim_close_reward_success
+============================================================
+
+Scenario:
+1. Activity has prize_pool = 300
+2. 3 participants exist
+3. close_activity already executed → avg = 100
+4. Claim close_reward for participant @0x2
+5. Assert:
+      participant.has_claimed_close_reward == true
+      activity.remaining_pool_after_close == 200
+      activity.prize_pool_coin.value == 200
+
+============================================================
+TEST 4 — test_claim_close_reward_twice_fails
+============================================================
+- @0x2 claims once successfully
+- Second claim → abort(E_CLOSE_REWARD_ALREADY_CLAIMED)
+
+============================================================
+TEST 5 — test_claim_close_reward_before_closed_fails
+============================================================
+- Call claim_close_reward BEFORE close_activity
+- Expect abort(E_ACTIVITY_NOT_CLOSED)
+
+============================================================
+TEST 6 — test_withdraw_remaining_after_close_success
+============================================================
+Scenario:
+1. prize_pool = 300
+2. close_activity → avg = 100
+3. Two participants claim (so 200 paid)
+4. remaining == 100
+5. organizer calls withdraw_remaining_after_close
+6. Assert:
+      activity.prize_pool_coin.value == 0
+      activity.remaining_pool_after_close == 0
+
+============================================================
+TEST 7 — test_withdraw_remaining_zero_fails
+============================================================
+- After organizer already withdrew all remaining
+- Calling again should abort(E_REMAINING_POOL_ZERO)
+
+============================================================
+RULES
+============================================================
+- Ensure proper cleanup: object::delete(uid) for all created UIDs.
+- Tests must run with `iota move test`.
+- Use #[expected_failure(abort_code = ...)] for all negative tests.
+
+============================================================
+OUTPUT
+============================================================
+Return the FULL file:
+
+    contracts/tests/close_activity_tests.move
+
+as a complete code block.
+```
