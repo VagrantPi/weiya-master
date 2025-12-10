@@ -1450,3 +1450,209 @@ as a full single code block compatible with `iota move test`.
 
 ```
 
+## ✅ Codex Prompt：Step 9 – Integration Flow Tests（整合測試）
+
+```
+You are Codex working on the IOTA Move project.
+
+Goal:
+Create a high-level integration test module that runs end-to-end flows across:
+- Activity
+- Bonus
+- Prize Draw
+- Lottery
+- Game (SINGLE & AVERAGE)
+- Close activity & withdraw remaining
+
+File to create:
+
+    contracts/tests/integration_flow_tests.move
+
+Module name suggestion:
+
+    module weiya_master::integration_flow_tests { ... }
+
+You must assume the main contract is:
+
+    module weiya_master::annual_party;
+
+and it already contains all entry functions from previous steps:
+- create_activity
+- join_activity
+- add_prize_fund
+- create_bonus_event
+- claim_bonus
+- draw_prize
+- create_lottery
+- join_lottery
+- execute_lottery
+- create_game
+- submit_choice
+- reveal_game_answer
+- claim_game_reward
+- close_activity
+- claim_close_reward
+- withdraw_remaining_after_close
+
+Imports to use (you may add more if needed):
+
+    use weiya_master::annual_party;
+    use iota::tx_context;
+    use iota::object;
+    use std::string;
+    use std::vector;
+
+============================================================
+TEST 1 — test_full_activity_bonus_and_close_flow
+============================================================
+
+Scenario:
+1. Setup:
+   - TxContext with organizer @0x1.
+   - Call annual_party::create_activity(...) to create an Activity with initial prize pool = 1000.
+   - Get a local `Activity` value you can mutate in tests.
+
+2. 3 employees join:
+   - addresses: @0x2, @0x3, @0x4
+   - Simulate join_activity behavior:
+       - either by directly calling entry fun join_activity
+         OR by constructing Participant objects and pushing into activity.participants, depending on how previous tests are written.
+   - Ensure activity.participant_count == 3.
+
+3. Create bonus event:
+   - bonus_per_user = 100
+   - call create_bonus_event.
+   - Expect:
+       - activity.has_bonus_event == true
+       - activity.bonus_amount_per_user == 100.
+
+4. Each participant claims bonus:
+   - @0x2 claim_bonus(...)
+   - @0x3 claim_bonus(...)
+   - @0x4 claim_bonus(...)
+   - Assert:
+       - their Participant.has_claimed_bonus == true
+       - activity.prize_pool_coin.value decreased by 300 from initial.
+
+5. Close activity:
+   - call close_activity(organizer, activity_id, &mut activity, ...)
+   - Assert:
+       - activity.status == CLOSED
+       - close_payout_amount == remaining_pool / 3 (use the actual values).
+
+6. Two participants claim close reward:
+   - @0x2 claim_close_reward
+   - @0x3 claim_close_reward
+   - Assert:
+       - their has_claimed_close_reward == true
+       - activity.remaining_pool_after_close decreased accordingly.
+
+7. Organizer withdraws remaining:
+   - withdraw_remaining_after_close(organizer, ...)
+   - Assert:
+       - activity.prize_pool_coin.value == 0
+       - activity.remaining_pool_after_close == 0.
+
+This test is mainly about checking the entire life-cycle does not abort
+and the core fields on Activity / Participant are updated correctly.
+
+============================================================
+TEST 2 — test_full_lottery_flow
+============================================================
+
+Scenario:
+1. Create Activity with organizer @0x1 and prize_pool 0 or some small base.
+2. Two participants join Activity: @0x2, @0x3.
+3. Organizer calls create_lottery for this Activity.
+4. @0x2 join_lottery with amount 40
+5. @0x3 join_lottery with amount 60
+6. Execute lottery:
+   - organizer calls execute_lottery with some client_seed
+   - Assert:
+       - lottery.status == DRAWN
+       - lottery.pot_coin.value == 0
+       - lottery.winner is Some(addr) and is either @0x2 or @0x3.
+
+Note:
+- Since we do not have a global balance tracker,
+  you only need to verify lottery state, not actual account balances.
+
+============================================================
+TEST 3 — test_full_game_average_flow
+============================================================
+
+Scenario:
+1. Create Activity with organizer @0x1 and sufficient prize_pool (e.g. 1000).
+2. Participants @0x2, @0x3, @0x4 join Activity.
+3. Organizer creates a Game:
+   - question "Q1"
+   - options ["A","B","C","D"]
+   - reward_amount = 90
+   - mode = GameRewardMode::AVERAGE.
+
+4. All three submit_choice:
+   - @0x2 → choice 1
+   - @0x3 → choice 1
+   - @0x4 → choice 2
+
+5. Organizer calls reveal_game_answer(correct_option=1, client_seed=123).
+   - Assert:
+       - game.status == ANSWER_REVEALED
+       - game.total_correct == 2
+
+6. Both correct participants claim reward:
+   - @0x2 claim_game_reward(...)
+   - @0x3 claim_game_reward(...)
+   - Each should receive 45 (conceptually).
+   - Assert:
+       - their GameParticipation.has_claimed_reward == true
+       - game.status eventually becomes CLOSED when all correct have claimed
+         (if your implementation supports this).
+
+============================================================
+TEST 4 — test_full_game_single_flow
+============================================================
+
+Scenario:
+1. Same as average test, but:
+   - reward_amount = 100
+   - mode = SINGLE
+   - At least 2 participants answer correctly.
+
+2. reveal_game_answer:
+   - game.reward_mode == SINGLE
+   - some correct winner is chosen via RNG.
+
+3. Winner calls claim_game_reward:
+   - receives full 100
+   - game.status == CLOSED after claim.
+
+4. Non-winner trying to claim must abort(E_NOT_GAME_WINNER).
+   Use #[expected_failure] for that negative case in a separate test function,
+   e.g. test_full_game_single_flow_non_winner_fails.
+
+============================================================
+GENERAL IMPLEMENTATION NOTES
+============================================================
+
+- Reuse helper patterns from your previous test modules
+  (e.g., how to create dummy TxContext, how to construct Activity / Participant / Game / Lottery objects).
+- Always clean up UIDs via object::delete at the end of tests.
+- You may create small internal helper functions in the test module
+  to reduce repetition (creating dummy Activity, participants, etc.).
+
+- Positive tests use #[test].
+- For the negative sub-case in Test 4 (non-winner fails), use #[expected_failure].
+
+============================================================
+OUTPUT
+============================================================
+
+Return the full content of:
+
+    contracts/tests/integration_flow_tests.move
+
+as a single complete code block, ready to compile with `iota move test`.
+```
+
+
