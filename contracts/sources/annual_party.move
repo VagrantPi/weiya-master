@@ -852,7 +852,10 @@ module weiya_master::annual_party {
     ) {
         let caller = iota::tx_context::sender(ctx);
 
-        // 基本關聯檢查
+        let actual_activity_id = object::id(activity);
+        assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
+
+        // 參與紀錄與遊戲 / 呼叫者關聯檢查
         if (participation.owner != caller) {
             abort E_NOT_GAME_WINNER;
         };
@@ -863,39 +866,30 @@ module weiya_master::annual_party {
             abort E_GAME_NOT_FOUND;
         };
 
+        // 遊戲必須已揭露答案
         if (game.status != GameStatus::ANSWER_REVEALED) {
             abort E_GAME_NOT_ANSWER_REVEALED;
         };
 
+        // 參與紀錄必須已被標記為答對且未領取過
+        if (!participation.is_correct) {
+            abort E_NOT_GAME_WINNER;
+        };
         if (participation.has_claimed_reward) {
             abort E_GAME_REWARD_ALREADY_CLAIMED;
         };
 
-        // 必須已有正確答案
-        if (!option::is_some<u8>(&game.correct_option)) {
-            abort E_GAME_NOT_ANSWER_REVEALED;
-        };
-        let correct_ref = option::borrow<u8>(&game.correct_option);
-        if (participation.choice != *correct_ref) {
-            abort E_NOT_GAME_WINNER;
-        };
-
-        // 標記為答對
-        participation.is_correct = true;
-
         let mut amount = 0;
         if (game.reward_mode == GameRewardMode::AVERAGE) {
-            // 規格上應使用 total_correct 做平均分配。
-            // 由於 reveal 階段尚未能統計 total_correct，這裡若為 0 則視為沒有其他得獎者，
-            // 直接給予全額 reward_amount，避免除以零。
+            // AVERAGE 模式：依 total_correct 均分獎金
             let total = game.total_correct;
             if (total == 0) {
-                amount = game.reward_amount;
-            } else {
-                amount = game.reward_amount / total;
-            }
+                // 理論上不應發生（沒有任何答對者），此時不允許領獎
+                abort E_NOT_GAME_WINNER;
+            };
+            amount = game.reward_amount / total;
         } else {
-            // SINGLE 模式：僅 winner_addr 可領取
+            // SINGLE 模式：僅 winner_addr 可領取全額
             if (!option::is_some<address>(&game.winner_addr)) {
                 abort E_NOT_GAME_WINNER;
             };
@@ -906,6 +900,7 @@ module weiya_master::annual_party {
             amount = game.reward_amount;
         };
 
+        // 檢查活動獎金池餘額
         if (activity.prize_pool_coin.value < amount) {
             abort E_INSUFFICIENT_PRIZE_POOL;
         };
@@ -913,9 +908,18 @@ module weiya_master::annual_party {
         activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
         let coin_out = Coin<IOTA> { value: amount };
 
+        // 更新參與紀錄領獎狀態
         participation.has_claimed_reward = true;
 
         deposit_iota(caller, coin_out);
+
+        // SINGLE 模式：得獎者領取後即可關閉遊戲。
+        // AVERAGE 模式理論上需在所有答對者皆領取後才關閉，
+        // 但目前缺乏 Participation 索引，無法在此檢查是否「全部已領」，
+        // 因此僅在 SINGLE 模式做自動關閉，AVERAGE 模式維持 ANSWER_REVEALED。
+        if (game.reward_mode == GameRewardMode::SINGLE) {
+            game.status = GameStatus::CLOSED;
+        };
 
         event::emit(GameRewardClaimedEvent {
             activity_id,

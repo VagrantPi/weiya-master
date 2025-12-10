@@ -1264,3 +1264,189 @@ Return only:
     contracts/tests/game_step8a_tests.move
 as a full code block.
 ```
+
+## Step 8B：四選一遊戲（Game）獎勵領取 claim_game_reward
+
+```
+You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+
+Your task:
+Implement Step 8B — claim_game_reward inside:
+    contracts/sources/annual_party.move
+
+This step is the continuation of Step 8A.
+
+------------------------------------------------------------
+OBJECTIVES
+------------------------------------------------------------
+Implement the following entry function exactly per SPEC:
+
+public entry fun claim_game_reward(
+    user: &signer,
+    activity_id: ID,
+    game_id: ID,
+    activity: &mut Activity,
+    game: &mut Game,
+    participation: &mut GameParticipation,
+    ctx: &mut TxContext
+)
+
+------------------------------------------------------------
+RULES FROM SPEC
+------------------------------------------------------------
+
+1. Validate Participation
+------------------------------------------------------------
+- participation.owner == signer::address_of(user)
+  else abort(E_NOT_GAME_WINNER)
+- participation.game_id == game_id
+  else abort(E_GAME_NOT_FOUND)
+- participation.is_correct == true
+  else abort(E_NOT_GAME_WINNER)
+- participation.has_claimed_reward == false
+  else abort(E_GAME_REWARD_ALREADY_CLAIMED)
+
+2. Validate Game
+------------------------------------------------------------
+- game.status == ANSWER_REVEALED
+  else abort(E_GAME_NOT_ANSWER_REVEALED)
+
+3. Determine reward amount
+------------------------------------------------------------
+
+AVERAGE mode:
+    per = game.reward_amount / game.total_correct
+    amount = per
+
+SINGLE mode:
+    if game.winner_addr != Some(user_addr):
+        abort(E_NOT_GAME_WINNER)
+    amount = game.reward_amount
+
+4. Deduct from Activity prize pool
+------------------------------------------------------------
+- Ensure activity.prize_pool_coin has >= amount
+  else abort(E_INSUFFICIENT_PRIZE_POOL)
+
+- Split amount from activity.prize_pool_coin:
+    let coin_out = Coin<IOTA> { value: amount };
+
+- deposit_iota(user_addr, coin_out)
+
+5. Update Participation
+------------------------------------------------------------
+- participation.has_claimed_reward = true
+
+6. If ALL correct participants have claimed:
+------------------------------------------------------------
+- Optional optimization: set game.status = CLOSED
+  (Codex: please implement this.)
+
+Criteria:
+- For AVERAGE: closed when all correct participations have has_claimed_reward = true.
+- For SINGLE: closed instantly after the single winner claims.
+
+7. Emit:
+------------------------------------------------------------
+event::emit(GameRewardClaimedEvent {
+    activity_id,
+    game_id,
+    participant_addr: user_addr,
+    amount,
+});
+
+------------------------------------------------------------
+RNG + winner-selection code is already implemented in Step 8A, DO NOT modify it.
+
+------------------------------------------------------------
+OUTPUT
+------------------------------------------------------------
+Return the entire updated:
+    contracts/sources/annual_party.move
+as a single complete code block.
+
+Ensure code compiles using `iota move test`.
+```
+
+## ✅ Step 8B — Codex Prompt B（測試檔）
+
+```
+You are Codex. Create a full Move test module:
+
+    module weiya_master::game_step8b_claim_reward_tests;
+
+This test suite MUST validate Step 8B:
+    - claim_game_reward for Game SINGLE mode
+    - claim_game_reward for Game AVERAGE mode
+    - all failure cases per [SPEC.md](SPEC.md)
+
+============================================================
+TEST 1 — test_claim_reward_average_success
+============================================================
+Scenario:
+- organizer creates activity
+- participants @0x2, @0x3, @0x4 join
+- organizer creates game (reward_amount = 90, mode=AVERAGE)
+- choices:
+    @0x2 → 1
+    @0x3 → 1
+    @0x4 → 2
+- organizer reveals correct_option = 1
+    total_correct = 2
+    per = 45
+- @0x2 calls claim_game_reward → gets 45
+- @0x3 calls claim_game_reward → gets 45
+- Assert:
+    participation.has_claimed_reward == true
+    activity.prize_pool_coin decreased by 90
+    game.status becomes CLOSED once all correct participants claim
+
+============================================================
+TEST 2 — test_claim_reward_single_success
+============================================================
+Scenario:
+- 2 correct participants: @0x2, @0x3
+- reward_mode = SINGLE
+- winner_addr deterministic
+- ONLY winner can claim reward_amount (e.g., 50)
+- game.status becomes CLOSED immediately after claim
+
+============================================================
+TEST 3 — test_claim_reward_twice_fails
+============================================================
+- user claims once successfully
+- second claim must abort(E_GAME_REWARD_ALREADY_CLAIMED)
+
+============================================================
+TEST 4 — test_claim_reward_wrong_user_fails
+============================================================
+- user who is NOT in winner set calls
+- abort(E_NOT_GAME_WINNER)
+
+============================================================
+TEST 5 — test_claim_reward_before_reveal_fails
+============================================================
+- game.status = OPEN
+- claim must abort(E_GAME_NOT_ANSWER_REVEALED)
+
+============================================================
+TEST 6 — test_claim_reward_insufficient_pool_fails
+============================================================
+- artificially reduce prize_pool_coin below required amount
+- must abort(E_INSUFFICIENT_PRIZE_POOL)
+
+============================================================
+TEST 7 — test_claim_reward_wrong_game_id_fails
+============================================================
+- participation.game_id != game_id passed to function
+- abort(E_GAME_NOT_FOUND)
+
+============================================================
+OUPUT
+============================================================
+Return only:
+    contracts/tests/game_step8b_claim_reward_tests.move
+as a full single code block compatible with `iota move test`.
+
+```
+
