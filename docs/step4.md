@@ -844,3 +844,423 @@ Return the FULL file:
 
 as a complete code block.
 ```
+
+## Step 7（樂透 & 遊戲收尾整合 / cross-object reference 測試 / event 全量驗證
+
+```
+You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+
+Your task:
+Implement Step 7 — Lottery Module inside:
+    contracts/sources/annual_party.move
+
+Add / complete the following entry functions EXACTLY as defined in [SPEC.md](SPEC.md):
+
+------------------------------------------------------------
+1. create_lottery
+------------------------------------------------------------
+Signature:
+public entry fun create_lottery(
+    organizer: &signer,
+    activity_id: ID,
+    activity: &mut Activity,
+    ctx: &mut TxContext
+)
+
+Rules:
+- caller must be organizer, else abort(E_NOT_ORGANIZER)
+- activity.status must NOT be CLOSED
+- activity must NOT currently have an OPEN lottery:
+    * If activity.lottery_id == Some(id):
+         load Lottery(id)
+         if lottery.status == OPEN → abort(E_LOTTERY_ALREADY_ACTIVE)
+- Create a new Lottery object:
+    struct Lottery {
+        id: UID,
+        activity_id,
+        status = OPEN,
+        pot_coin = Coin<IOTA>{ value: 0 },
+        participants = empty vector<address>,
+        winner = None
+    }
+- activity.lottery_id = Some(new_lottery_id)
+- Emit LotteryCreatedEvent(activity_id, new_lottery_id)
+
+------------------------------------------------------------
+2. join_lottery
+------------------------------------------------------------
+Signature:
+public entry fun join_lottery(
+    user: &signer,
+    activity_id: ID,
+    lottery_id: ID,
+    activity: &mut Activity,
+    lottery: &mut Lottery,
+    amount: u64,
+    ctx: &mut TxContext
+)
+
+Rules:
+- user must be a Participant of the activity
+- lottery.status must be OPEN
+- amount > 0
+- user cannot already be in lottery.participants else abort(E_ALREADY_JOINED_LOTTERY)
+- withdraw_iota(user, amount) → coin_in
+- merge coin_in into lottery.pot_coin
+- push signer::address_of(user) into lottery.participants
+- Emit LotteryJoinedEvent(activity_id, lottery_id, user_addr, amount)
+
+------------------------------------------------------------
+3. execute_lottery
+------------------------------------------------------------
+Signature:
+public entry fun execute_lottery(
+    organizer: &signer,
+    activity_id: ID,
+    lottery_id: ID,
+    activity: &mut Activity,
+    lottery: &mut Lottery,
+    client_seed: u64,
+    ctx: &mut TxContext
+)
+
+Rules:
+- caller must be organizer, else abort(E_NOT_ORGANIZER)
+- lottery.status must be OPEN else abort(E_INVALID_LOTTERY_STATUS)
+- lottery.participants length > 0 else abort(E_NO_LOTTERY_PARTICIPANT)
+- Generate random_u64:
+      hash(block_hash || tx_hash || caller || client_seed)
+  idx = random_u64 % participants.length
+  winner_addr = participants[idx]
+- Transfer entire pot:
+      let amount = lottery.pot_coin.value
+      lottery.pot_coin.value = 0
+      deposit_iota(winner_addr, Coin<IOTA>{ value: amount })
+- lottery.status = DRAWN
+- lottery.winner = Some(winner_addr)
+- Emit LotteryExecutedEvent(activity_id, lottery_id, winner_addr, amount)
+
+------------------------------------------------------------
+OUTPUT
+------------------------------------------------------------
+Return the FULL updated file:
+    contracts/sources/annual_party.move
+as a single complete code block.
+
+Make sure code compiles via `iota move test`.
+```
+
+## ✅ Step 7 — Codex Prompt（測試）
+
+```
+You are Codex. Create a complete test module:
+
+    module weiya_master::lottery_tests;
+
+This test suite MUST validate Step 7:
+    create_lottery
+    join_lottery
+    execute_lottery
+
+Use EXACT rules from [SPEC.md](SPEC.md) + [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+
+============================================================
+TEST 1 — test_create_lottery_success
+============================================================
+Scenario:
+- organizer @0x1 creates an Activity
+- call create_lottery
+Assert:
+- activity.lottery_id == Some(id)
+- lottery.status == OPEN
+- pot_coin.value == 0
+
+============================================================
+TEST 2 — test_create_lottery_twice_fails
+============================================================
+- create first lottery (OPEN)
+- second create_lottery must abort(E_LOTTERY_ALREADY_ACTIVE)
+
+============================================================
+TEST 3 — test_join_lottery_success
+============================================================
+Scenario:
+- activity created, participants joined
+- organizer create_lottery → get lottery_id
+- @0x2 join_lottery with amount 50
+Assert:
+- pot_coin.value == 50
+- participants vector contains @0x2
+
+============================================================
+TEST 4 — test_join_lottery_duplicate_fails
+============================================================
+- @0x2 already joined
+- joining again must abort(E_ALREADY_JOINED_LOTTERY)
+
+============================================================
+TEST 5 — test_join_lottery_wrong_participant_fails
+============================================================
+- An address that did NOT join the activity tries to join lottery → expect abort(E_NOT_ACTIVITY_PARTICIPANT)
+
+============================================================
+TEST 6 — test_execute_lottery_success
+============================================================
+Scenario:
+- @0x2 deposit 40
+- @0x3 deposit 60
+- pot = 100
+- execute_lottery
+Assert:
+- lottery.status == DRAWN
+- winner_addr matches returned index
+- pot_coin.value == 0
+- winner receives correct amount 100
+
+============================================================
+TEST 7 — test_execute_lottery_no_participant_fails
+============================================================
+- lottery has 0 participants
+- execute_lottery must abort(E_NO_LOTTERY_PARTICIPANT)
+
+============================================================
+TEST 8 — test_execute_lottery_wrong_caller_fails
+============================================================
+- Non-organizer tries execute → abort(E_NOT_ORGANIZER)
+
+============================================================
+TEST 9 — test_execute_lottery_invalid_status_fails
+============================================================
+- lottery.status changed to DRAWN
+- execute again must abort(E_INVALID_LOTTERY_STATUS)
+
+============================================================
+Rules:
+============================================================
+- Tests must run under `iota move test`
+- Delete UIDs using object::delete where needed
+- Use #[expected_failure] annotations for fail cases
+
+============================================================
+OUTPUT
+============================================================
+Return the FULL file:
+    contracts/tests/lottery_tests.move
+as a complete code block.
+```
+
+## Step 8A：四選一遊戲（Game）核心互動邏輯：submit_choice + reveal_game_answer
+
+```
+You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+
+Your task:
+Implement Step 8A — Game Interaction Logic inside:
+    contracts/sources/annual_party.move
+
+This step includes:
+    - submit_choice
+    - reveal_game_answer
+    - GameParticipation creation
+    - correct_option + total_correct calculation
+    - SINGLE / AVERAGE winner selection (but DO NOT transfer any reward)
+    - update Game.status: OPEN → ANSWER_REVEALED
+
+Below is the full specification for Step 8A.
+
+------------------------------------------------------------
+1. submit_choice
+------------------------------------------------------------
+Signature:
+public entry fun submit_choice(
+    user: &signer,
+    activity_id: ID,
+    game_id: ID,
+    activity: &Activity,
+    game: &mut Game,
+    ctx: &mut TxContext
+)
+
+Rules:
+- Ensure game.status == OPEN else abort(E_GAME_NOT_OPEN)
+- Find participant object for this user:
+    * must exist and participant.joined == true
+- choice must be in {1,2,3,4}, else abort(E_INVALID_GAME_CHOICE)
+- Ensure (game_id, user_addr) has NO prior GameParticipation object
+  → If found, abort(E_ALREADY_SUBMITTED_CHOICE)
+- Create a new GameParticipation object:
+    {
+        id: UID,
+        game_id,
+        activity_id,
+        owner = signer::address_of(user),
+        choice,
+        is_correct = false,
+        has_claimed_reward = false
+    }
+- transfer to user
+(No event needed here.)
+
+------------------------------------------------------------
+2. reveal_game_answer
+------------------------------------------------------------
+Signature:
+public entry fun reveal_game_answer(
+    organizer: &signer,
+    activity_id: ID,
+    game_id: ID,
+    activity: &mut Activity,
+    game: &mut Game,
+    correct_option: u8,
+    client_seed: u64,
+    ctx: &mut TxContext
+)
+
+Rules:
+- caller must be organizer else abort(E_NOT_ORGANIZER)
+- game.status == OPEN else abort(E_GAME_NOT_OPEN)
+- correct_option in {1,2,3,4} else abort(E_INVALID_GAME_CHOICE)
+- Iterate all GameParticipation objects belonging to this game:
+    if participation.choice == correct_option:
+        participation.is_correct = true
+        game.total_correct += 1
+- Update game.correct_option = Some(correct_option)
+- Winner selection:
+    if game.reward_mode == SINGLE:
+        if total_correct > 0:
+            - Build vector<address> of correct participants
+            - random_u64 = hash(block_hash || tx_hash || caller || client_seed)
+            - idx = random_u64 % correct_set.length
+            - game.winner_addr = Some(correct_set[idx])
+    else (AVERAGE):
+        winner_addr = None
+- game.status = ANSWER_REVEALED
+- Emit GameAnswerRevealedEvent(activity_id, game_id, correct_option)
+
+------------------------------------------------------------
+3. Winner selection random number
+------------------------------------------------------------
+Use unified RNG from SPEC:
+
+random_u64 = hash(block_hash || tx_hash || caller || client_seed)
+idx = random_u64 % n
+
+Use tx_context::digest for the tx hash equivalent.
+
+------------------------------------------------------------
+4. OUTPUT
+------------------------------------------------------------
+Return the entire updated:
+    contracts/sources/annual_party.move
+as a single complete code block.
+
+Ensure the code compiles under `iota move test`.
+```
+
+## ✅ Step 8A — Codex Prompt B（測試）
+
+```
+You are Codex. Create a full Move test module:
+
+    module weiya_master::game_step8a_tests;
+
+This test suite MUST validate Step 8A:
+    - submit_choice
+    - reveal_game_answer
+
+Use EXACT rules from [SPEC.md](SPEC.md) + [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+
+============================================================
+TEST 1 — test_submit_choice_success
+============================================================
+Scenario:
+- organizer creates activity
+- user @0x2 joins activity
+- organizer creates game
+- @0x2 submit_choice(game_id, choice=2)
+Assert:
+- GameParticipation exists with:
+    owner == @0x2
+    choice == 2
+    is_correct == false
+    has_claimed_reward == false
+
+============================================================
+TEST 2 — test_submit_choice_twice_fails
+============================================================
+- @0x2 already submitted
+- second submit must abort(E_ALREADY_SUBMITTED_CHOICE)
+
+============================================================
+TEST 3 — test_submit_choice_invalid_option_fails
+============================================================
+- choice = 5
+- abort(E_INVALID_GAME_CHOICE)
+
+============================================================
+TEST 4 — test_submit_choice_game_not_open_fails
+============================================================
+- change game.status = ANSWER_REVEALED
+- submit_choice must abort(E_GAME_NOT_OPEN)
+
+============================================================
+TEST 5 — test_reveal_answer_average_success
+============================================================
+Scenario:
+- 3 participants choose:
+    @0x2 → 1
+    @0x3 → 1
+    @0x4 → 2
+- reward_mode = AVERAGE
+- reveal_game_answer(correct_option=1)
+Assert:
+- game.total_correct == 2
+- both @0x2 and @0x3 participation.is_correct == true
+- @0x4 is_correct == false
+- game.winner_addr == None
+- game.status == ANSWER_REVEALED
+
+============================================================
+TEST 6 — test_reveal_answer_single_success
+============================================================
+Scenario:
+- 2 correct answers: @0x2, @0x3
+- reward_mode = SINGLE
+- Using deterministic seed, ensure winner chosen is stable
+Assert:
+- game.total_correct == 2
+- game.winner_addr == one of {@0x2, @0x3}
+- status == ANSWER_REVEALED
+
+============================================================
+TEST 7 — test_reveal_answer_invalid_option_fails
+============================================================
+- correct_option = 7
+- abort(E_INVALID_GAME_CHOICE)
+
+============================================================
+TEST 8 — test_reveal_answer_not_open_fails
+============================================================
+- game.status = CLOSED
+- reveal must abort(E_GAME_NOT_OPEN)
+
+============================================================
+TEST 9 — test_reveal_answer_not_organizer_fails
+============================================================
+- Non-organizer calls reveal
+- abort(E_NOT_ORGANIZER)
+
+============================================================
+Rules
+============================================================
+- use #[expected_failure] for fail tests
+- ensure object::delete is used properly for UIDs
+- tests must be runnable with `iota move test`
+
+============================================================
+OUTPUT
+============================================================
+Return only:
+    contracts/tests/game_step8a_tests.move
+as a full code block.
+```

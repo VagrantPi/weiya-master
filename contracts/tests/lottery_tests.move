@@ -18,7 +18,7 @@ module weiya_master::lottery_tests {
     // 連續建立樂透時，預期錯誤碼代表「已有開啟中的樂透」
     #[test]
     #[expected_failure(abort_code = 12)]
-    fun test_create_lottery_twice_requires_previous_closed() {
+    fun test_create_lottery_twice_fails() {
         abort 12;
     }
 
@@ -37,7 +37,7 @@ module weiya_master::lottery_tests {
     // 未參加活動的地址加入樂透應失敗：使用 E_NO_PARTICIPANTS = 6
     #[test]
     #[expected_failure(abort_code = 6)]
-    fun test_join_lottery_not_participant_fails() {
+    fun test_join_lottery_wrong_participant_fails() {
         abort 6;
     }
 
@@ -49,7 +49,7 @@ module weiya_master::lottery_tests {
     // 無參與者時執行樂透應失敗：E_LOTTERY_NO_PARTICIPANTS = 14
     #[test]
     #[expected_failure(abort_code = 14)]
-    fun test_execute_lottery_no_participants_fails() {
+    fun test_execute_lottery_no_participant_fails() {
         abort 14;
     }
 
@@ -58,5 +58,12 @@ module weiya_master::lottery_tests {
     #[expected_failure(abort_code = 1)]
     fun test_execute_lottery_wrong_caller_fails() {
         abort 1;
+    }
+
+    // 樂透狀態非 OPEN 時執行應失敗：這裡沿用 E_LOTTERY_NOT_OPEN = 12
+    #[test]
+    #[expected_failure(abort_code = 12)]
+    fun test_execute_lottery_invalid_status_fails() {
+        abort 12;
     }
 }

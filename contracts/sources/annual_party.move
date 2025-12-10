@@ -508,7 +508,9 @@ module weiya_master::annual_party {
             abort E_ACTIVITY_CLOSED;
         };
 
-        // 單一活動同時間僅允許一個開啟中的樂透
+        // 單一活動同時間僅允許一個開啟中的樂透。
+        // 目前僅透過 lottery_id 儲存 ID，無法載入並檢查舊 Lottery 的狀態，
+        // 因此當已有 lottery_id 時視為已有活動中的樂透。
         if (!option::is_none(&activity.lottery_id)) {
             abort E_LOTTERY_NOT_OPEN;
         };
@@ -536,7 +538,8 @@ module weiya_master::annual_party {
 
     public entry fun join_lottery(
         activity_id: ID,
-        activity: &Activity,
+        lottery_id: ID,
+        activity: &mut Activity,
         lottery: &mut Lottery,
         amount: u64,
         ctx: &mut TxContext,
@@ -545,6 +548,9 @@ module weiya_master::annual_party {
 
         let actual_activity_id = object::id(activity);
         assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
+
+        let actual_lottery_id = object::id(lottery);
+        assert!(lottery_id == actual_lottery_id, E_LOTTERY_NOT_FOUND);
 
         // 樂透必須隸屬於此活動
         if (lottery.activity_id != activity_id) {
@@ -571,8 +577,6 @@ module weiya_master::annual_party {
 
         vector::push_back(&mut lottery.participants, user_addr);
 
-        let lottery_id = object::id(lottery);
-
         event::emit(LotteryJoinedEvent {
             activity_id,
             lottery_id,
@@ -583,7 +587,8 @@ module weiya_master::annual_party {
 
     public entry fun execute_lottery(
         activity_id: ID,
-        activity: &Activity,
+        lottery_id: ID,
+        activity: &mut Activity,
         lottery: &mut Lottery,
         client_seed: u64,
         ctx: &mut TxContext,
@@ -592,6 +597,9 @@ module weiya_master::annual_party {
 
         let actual_activity_id = object::id(activity);
         assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
+
+        let actual_lottery_id = object::id(lottery);
+        assert!(lottery_id == actual_lottery_id, E_LOTTERY_NOT_FOUND);
 
         // 僅 organizer 可執行樂透
         if (organizer_addr != activity.organizer) {
@@ -644,8 +652,6 @@ module weiya_master::annual_party {
 
         lottery.status = LotteryStatus::DRAWN;
         lottery.winner = option::some<address>(winner_addr);
-
-        let lottery_id = object::id(lottery);
 
         event::emit(LotteryExecutedEvent {
             activity_id,
@@ -744,6 +750,9 @@ module weiya_master::annual_party {
         let actual_activity_id = object::id(activity);
         assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
 
+        let actual_game_id = object::id(game);
+        assert!(game_id == actual_game_id, E_GAME_NOT_FOUND);
+
         // 遊戲必須隸屬於此活動
         if (game.activity_id != activity_id) {
             abort E_GAME_NOT_FOUND;
@@ -792,6 +801,9 @@ module weiya_master::annual_party {
 
         let actual_activity_id = object::id(activity);
         assert!(activity_id == actual_activity_id, E_ACTIVITY_NOT_OPEN);
+
+        let actual_game_id = object::id(game);
+        assert!(game_id == actual_game_id, E_GAME_NOT_FOUND);
 
         // 僅主辦人可揭露答案
         if (caller != activity.organizer) {
