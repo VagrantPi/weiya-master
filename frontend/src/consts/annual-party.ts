@@ -43,3 +43,15 @@ export const getLotteryType = (network: Network | string | undefined) => {
   const { packageId, module } = getAnnualPartyConfig(network);
   return `${packageId}::${module}::Lottery`;
 };
+
+export const getGameType = (network: Network | string | undefined) => {
+  const { packageId, module } = getAnnualPartyConfig(network);
+  return `${packageId}::${module}::Game`;
+};
+
+export const getGameParticipationType = (
+  network: Network | string | undefined,
+) => {
+  const { packageId, module } = getAnnualPartyConfig(network);
+  return `${packageId}::${module}::GameParticipation`;
+};

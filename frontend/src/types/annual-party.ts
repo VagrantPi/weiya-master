@@ -78,3 +78,53 @@ export interface LotteryView {
   participantCount: number;
 }
 
+export type GameStatus = 'OPEN' | 'ANSWER_REVEALED' | 'CLOSED';
+export type GameRewardMode = 'SINGLE' | 'AVERAGE';
+
+export interface Game {
+  id: string;
+  activityId: string;
+  status: GameStatus;
+
+  question: string;
+  options: string[];
+  rewardAmount: bigint;
+  rewardMode: GameRewardMode;
+
+  correctOption: number | null;
+  totalCorrect: bigint;
+  winnerAddr: string | null;
+
+  participationIds: string[];
+  participationOwners: string[];
+  participationChoices: number[];
+}
+
+export interface GameView {
+  game: Game | null;
+
+  isOpen: boolean;
+  isAnswerRevealed: boolean;
+  isClosed: boolean;
+
+  hasCorrectOption: boolean;
+  correctOptionLabel: string | null;
+}
+
+export interface GameParticipation {
+  id: string;
+  gameId: string;
+  activityId: string;
+  owner: string;
+
+  choice: number;
+  isCorrect: boolean;
+  hasClaimedReward: boolean;
+}
+
+export interface GameParticipationView {
+  participation: GameParticipation;
+  choiceIndex: number;
+  canClaim: boolean;
+}
+
