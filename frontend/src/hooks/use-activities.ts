@@ -146,6 +146,26 @@ export const mapActivityFromObject = (obj: IotaObjectResponse): Activity => {
   };
 };
 
+export const useActivityList = (): {
+  activities: Activity[];
+  isLoading: boolean;
+  error: Error | null;
+} => {
+  const { network } = useIotaClientContext();
+
+  const query = useQuery<Activity[], Error>({
+    queryKey: ['activity-list', network],
+    // 這裡先回傳空陣列作為預設實作，後續可以依照 TPM 規格改成從鏈上查詢所有 Activity。
+    queryFn: async () => [],
+  });
+
+  return {
+    activities: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error ?? null,
+  };
+};
+
 export const useActivitiesQuery = (
   activityIds: string[],
 ): UseQueryResult<Activity[]> => {
@@ -212,4 +232,3 @@ export const useActivityQuery = (
     },
   });
 };
-

@@ -6,7 +6,11 @@ import {
 } from '@iota/dapp-kit';
 
 import { getParticipantType } from '../consts/annual-party';
-import type { Activity, MyParticipantState, Participant } from '../types/annual-party';
+import type {
+  Activity,
+  MyParticipantState,
+  Participant,
+} from '../types/annual-party';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const mapParticipantFromObject = (obj: any): Participant => {
@@ -119,6 +123,32 @@ export const useMyParticipant = (
         canClaimBonus,
         canClaimCloseReward,
       };
+    },
+  });
+};
+
+export const useParticipants = (
+  activityId: string | null,
+): UseQueryResult<Participant[]> => {
+  const client = useIotaClient();
+  const { network } = useIotaClientContext();
+
+  const participantType = getParticipantType(network);
+
+  const enabled = Boolean(activityId) && Boolean(participantType);
+
+  return useQuery({
+    queryKey: ['participants', network, activityId],
+    enabled,
+    queryFn: async () => {
+      if (!enabled || !activityId) {
+        return [];
+      }
+
+      // 目前 IOTA SDK 尚未提供直接依 activityId 索引所有 Participant 的 API，
+      // 這裡預留實作空間，先回傳空陣列以確保 UI 正常執行。
+      // 未來可改為掃描對應 StructType 或使用事件索引。
+      return [];
     },
   });
 };
