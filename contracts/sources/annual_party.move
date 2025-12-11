@@ -3,8 +3,10 @@ module weiya_master::annual_party {
     use iota::object::{ID, UID};
     use iota::tx_context::TxContext;
     use iota::event;
-    use iota::random::{Self as random, Random};
     use iota::transfer;
+    use iota::random::{Self as random, Random};
+    use std::bcs;
+    use std::hash;
     use std::string;
 
     //
@@ -100,6 +102,9 @@ module weiya_master::annual_party {
         correct_option: option::Option<u8>,
         total_correct: u64,
         winner_addr: option::Option<address>,
+        participation_ids: vector<ID>,
+        participation_owners: vector<address>,
+        participation_choices: vector<u8>,
     }
 
     public struct GameParticipation has key {
@@ -706,6 +711,9 @@ module weiya_master::annual_party {
             correct_option: option::none<u8>(),
             total_correct: 0,
             winner_addr: option::none<address>(),
+             participation_ids: vector[],
+             participation_owners: vector[],
+             participation_choices: vector[],
         };
 
         let game_id = object::id(&game);
@@ -757,7 +765,15 @@ module weiya_master::annual_party {
             abort E_NO_PARTICIPANTS;
         };
 
-        // TODO(規格差異)：目前缺乏 GameParticipation 索引，無法檢查是否已經提交過 choice。
+        // 檢查是否已經提交過 choice：若 participation_owners 中已包含 caller 則不允許重複提交
+        let mut i = 0;
+        let owners_len = vector::length(&game.participation_owners);
+        while (i < owners_len) {
+            if (game.participation_owners[i] == caller) {
+                abort E_ALREADY_SUBMITTED_CHOICE;
+            };
+            i = i + 1;
+        };
 
         let participation = GameParticipation {
             id: object::new(ctx),
@@ -768,6 +784,11 @@ module weiya_master::annual_party {
             is_correct: false,
             has_claimed_reward: false,
         };
+
+        let participation_id = object::id(&participation);
+        vector::push_back(&mut game.participation_ids, participation_id);
+        vector::push_back(&mut game.participation_owners, caller);
+        vector::push_back(&mut game.participation_choices, choice);
 
         transfer::share_object(participation);
     }
@@ -806,15 +827,54 @@ module weiya_master::annual_party {
             abort E_INVALID_GAME_CHOICE;
         };
 
-        // TODO(規格差異)：
-        // 依據規格，這裡應遍歷所有 GameParticipation 物件，根據 choice 是否等於 correct_option
-        // 來更新 participation.is_correct 並累計 game.total_correct。
-        // 在目前的物件模型下缺乏對 Participation 的鏈上索引，無法在模組內完成這個迴圈，
-        // 因此 total_correct 與 is_correct 的更新暫不在此實作。
-        //
-        // SINGLE 模式下 winner_addr 也應從所有答對的參與者中隨機挑選，
-        // 目前同樣因缺乏索引而無法完整實作，先保留 winner_addr 為 None。
-        // 之後若擴充儲存結構，會再補齊此部分邏輯。
+        // 根據所有 participation_choices 重新計算 total_correct，並收集答對者地址
+        game.total_correct = 0;
+        let mut correct_addrs = vector::empty<address>();
+        let len = vector::length(&game.participation_choices);
+        let mut i = 0;
+        while (i < len) {
+            if (game.participation_choices[i] == correct_option) {
+                game.total_correct = game.total_correct + 1;
+                let addr = game.participation_owners[i];
+                vector::push_back(&mut correct_addrs, addr);
+            };
+            i = i + 1;
+        };
+
+        // SINGLE 模式：在所有答對者中隨機選出一位 winner_addr
+        if (game.reward_mode == GameRewardMode::SINGLE) {
+            if (game.total_correct > 0) {
+                let correct_len = vector::length(&correct_addrs);
+
+                // 使用 tx_digest + caller + client_seed 組合雜湊產生亂數索引
+                let tx_digest_ref = iota::tx_context::digest(ctx);
+                let mut data = bcs::to_bytes(tx_digest_ref);
+                let mut sender_bytes = bcs::to_bytes(&caller);
+                let mut seed_bytes = bcs::to_bytes(&client_seed);
+                vector::append(&mut data, sender_bytes);
+                vector::append(&mut data, seed_bytes);
+
+                let hash_bytes = hash::sha3_256(data);
+
+                let mut k: u64 = 0;
+                let mut random_u64: u64 = 0;
+                while (k < 8) {
+                    random_u64 =
+                        (random_u64 << 8) + (hash_bytes[k] as u64);
+                    k = k + 1;
+                };
+
+                let winner_index = random_u64 % correct_len;
+                let winner_addr = correct_addrs[winner_index];
+                game.winner_addr = option::some<address>(winner_addr);
+            } else {
+                // 若無任何答對者則不設定 winner_addr（維持 None）
+                game.winner_addr = option::none<address>();
+            };
+        } else {
+            // AVERAGE 模式不設定 winner_addr，由每位答對者個別領獎
+            game.winner_addr = option::none<address>();
+        };
 
         game.correct_option = option::some<u8>(correct_option);
         game.status = GameStatus::ANSWER_REVEALED;
@@ -855,20 +915,43 @@ module weiya_master::annual_party {
             abort E_GAME_NOT_ANSWER_REVEALED;
         };
 
-        // 參與紀錄必須已被標記為答對且未領取過
-        if (!participation.is_correct) {
-            abort E_NOT_GAME_WINNER;
-        };
+        // 參與紀錄不得重複領取
         if (participation.has_claimed_reward) {
             abort E_GAME_REWARD_ALREADY_CLAIMED;
         };
+
+        // 確認此 participation 確實屬於該 Game（透過 participation_ids 檢查）
+        let pid = object::id(participation);
+        let mut found = false;
+        let mut idx: u64 = 0;
+        let ids_len = vector::length(&game.participation_ids);
+        while (idx < ids_len) {
+            if (game.participation_ids[idx] == pid) {
+                found = true;
+                break;
+            };
+            idx = idx + 1;
+        };
+        if (!found) {
+            abort E_GAME_NOT_FOUND;
+        };
+
+        // 重新檢查是否答對：choice 必須等於 correct_option
+        if (!option::is_some<u8>(&game.correct_option)) {
+            abort E_GAME_NOT_ANSWER_REVEALED;
+        };
+        let correct_ref = option::borrow<u8>(&game.correct_option);
+        let correct_value = *correct_ref;
+        if (participation.choice != correct_value) {
+            abort E_NOT_GAME_WINNER;
+        };
+        participation.is_correct = true;
 
         let mut amount = 0;
         if (game.reward_mode == GameRewardMode::AVERAGE) {
             // AVERAGE 模式：依 total_correct 均分獎金
             let total = game.total_correct;
             if (total == 0) {
-                // 理論上不應發生（沒有任何答對者），此時不允許領獎
                 abort E_NOT_GAME_WINNER;
             };
             amount = game.reward_amount / total;
