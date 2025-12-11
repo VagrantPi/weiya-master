@@ -588,6 +588,7 @@ module weiya_master::annual_party {
         });
     }
 
+    #[allow(lint(public_random))]
     public entry fun execute_lottery(
         activity_id: ID,
         lottery_id: ID,
@@ -1168,6 +1169,7 @@ module weiya_master::annual_party {
         });
     }
 
+    #[allow(lint(public_random))]
     public entry fun draw_prize(
         activity_id: ID,
         activity: &mut Activity,
