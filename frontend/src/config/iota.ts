@@ -1,8 +1,10 @@
-export const SUPPORTED_NETWORKS = ['devnet'] as const;
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
+
+export const SUPPORTED_NETWORKS = ['testnet'] as const;
 
 export type SupportedNetwork = (typeof SUPPORTED_NETWORKS)[number];
 
-export const DEFAULT_NETWORK: SupportedNetwork = 'devnet';
+export const DEFAULT_NETWORK: SupportedNetwork = 'testnet';
 
 export interface NetworkConfigEntry {
   key: SupportedNetwork;
@@ -12,9 +14,11 @@ export interface NetworkConfigEntry {
 }
 
 export const NETWORK_CONFIG: Record<SupportedNetwork, NetworkConfigEntry> = {
-  devnet: {
-    key: 'devnet',
-    rpcUrl: import.meta.env.VITE_IOTA_RPC_URL ?? 'http://localhost:1769',
+  testnet: {
+    key: 'testnet',
+    rpcUrl:
+      import.meta.env.VITE_IOTA_RPC_URL ??
+      getFullnodeUrl('testnet'),
     faucetUrl: import.meta.env.VITE_IOTA_FAUCET_URL,
     explorerBaseUrl: import.meta.env.VITE_IOTA_EXPLORER_URL,
   },
@@ -22,4 +26,3 @@ export const NETWORK_CONFIG: Record<SupportedNetwork, NetworkConfigEntry> = {
 
 export const ANNUAL_PARTY_PACKAGE_ID =
   '0x43572924a0b39b6509737f93365c5eac9cf2718fe6bdd312281face6fcbeebb7';
-

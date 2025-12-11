@@ -2,7 +2,8 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useIotaClient, useIotaClientContext } from '@iota/dapp-kit';
 import type { IotaObjectResponse } from '@iota/iota-sdk/client';
 
-import type { Activity } from '../types/annual-party';
+import { getActivityType, getAnnualPartyConfig } from '../consts/annual-party';
+import type { Activity, ActivityView } from '../types/annual-party';
 
 const toBigIntSafe = (value: unknown): bigint => {
   if (typeof value === 'bigint') return value;
@@ -166,41 +167,90 @@ export const useActivityList = (): {
   };
 };
 
-export const useActivitiesQuery = (
-  activityIds: string[],
-): UseQueryResult<Activity[]> => {
+export const useActivitiesQuery = (): UseQueryResult<ActivityView[]> => {
   const client = useIotaClient();
   const { network } = useIotaClientContext();
 
   return useQuery({
-    queryKey: ['activities', network, activityIds],
-    enabled: activityIds.length > 0,
+    queryKey: ['activities', network],
     queryFn: async () => {
-      if (activityIds.length === 0) {
+      const { packageId, module } = getAnnualPartyConfig(network);
+      const activityType = getActivityType(network);
+
+      // 先透過事件查詢所有 ActivityCreatedEvent，
+      // 再根據 event 中的 activity_id 讀取對應的 Activity 物件。
+      const eventType = `${packageId}::${module}::ActivityCreatedEvent`;
+
+      const eventsRes = await client.queryEvents({
+        query: { MoveEventType: eventType },
+        limit: 100,
+        order: 'descending',
+      });
+
+      const ids: string[] = [];
+
+      for (const ev of eventsRes.data ?? []) {
+        const parsed = ev.parsedJson;
+        if (!parsed || typeof parsed !== 'object') continue;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const activityId = (parsed as any).activity_id;
+        if (typeof activityId === 'string') {
+          ids.push(activityId);
+        }
+      }
+
+      const uniqueIds = Array.from(new Set(ids));
+      if (uniqueIds.length === 0) {
         return [];
       }
 
-      const responses = await client.multiGetObjects({
-        ids: activityIds,
+      const objects = await client.multiGetObjects({
+        ids: uniqueIds,
         options: {
           showContent: true,
         },
       });
 
-      const activities: Activity[] = [];
+      const byId: Record<string, ActivityView> = {};
 
-      for (const res of responses) {
-        if (res.error) {
-          // 若需要可以在這裡選擇直接丟出錯誤，暫時略過有錯誤的物件
-          // throw new Error(res.error.code);
+      for (const obj of objects) {
+        try {
+          if (!obj.data || !obj.data.content) continue;
+          if (
+            obj.data.content.dataType !== 'moveObject' ||
+            obj.data.content.type !== activityType
+          ) {
+            continue;
+          }
+
+          const act = mapActivityFromObject(obj as IotaObjectResponse);
+          byId[act.id] = {
+            id: act.id,
+            organizer: act.organizer,
+            name: act.name,
+            status: act.status,
+            prizePoolAmount: act.prizePool,
+            participantCount: act.participantCount,
+            hasBonusEvent: act.hasBonusEvent,
+            closePayoutAmount: act.closePayoutAmount,
+          };
+        } catch {
+          // 忽略單筆解析錯誤
           // eslint-disable-next-line no-continue
           continue;
         }
-
-        activities.push(mapActivityFromObject(res));
       }
 
-      return activities;
+      // 依 event 出現順序組成列表
+      const views: ActivityView[] = [];
+      for (const id of uniqueIds) {
+        const view = byId[id];
+        if (view) {
+          views.push(view);
+        }
+      }
+
+      return views;
     },
   });
 };

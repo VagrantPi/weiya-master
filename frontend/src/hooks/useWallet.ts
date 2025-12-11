@@ -1,32 +1,29 @@
-import { useWalletContext } from '../contexts/WalletContext';
+import {
+  useCurrentAccount,
+  useCurrentWallet,
+  useIotaClientContext,
+} from '@iota/dapp-kit';
 
 export const useWallet = () => {
-  const ctx = useWalletContext();
+  const currentAccount = useCurrentAccount();
+  const { network } = useIotaClientContext();
+  const { isConnected } = useCurrentWallet();
 
-  const {
-    snapStatus,
-    isSnapLoading,
-    snapError,
-    connectSnap,
-    disconnectSnap,
-    currentAccount,
-    currentAddress,
-    isReady,
-    network,
-  } = ctx;
+  const currentAddress = currentAccount?.address ?? '';
+  const isReady = isConnected && Boolean(currentAddress);
 
   return {
-    snapStatus,
-    isSnapLoading,
-    snapError,
-    connectSnap,
-    disconnectSnap,
+    snapStatus: isReady ? 'CONNECTED' : 'NOT_INSTALLED',
+    isSnapLoading: false,
+    snapError: null as string | null,
+    connectSnap: async () => {},
+    disconnectSnap: async () => {},
     currentAccount,
     currentAddress,
     isReady,
     network,
-    isConnected: isReady,
-    isSnapInstalled: snapStatus === 'INSTALLED' || snapStatus === 'CONNECTED',
+    isConnected,
+    isSnapInstalled: isConnected,
   };
 };
 

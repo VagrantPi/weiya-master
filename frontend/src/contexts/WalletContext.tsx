@@ -27,7 +27,9 @@ export interface WalletContextValue {
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
-export function WalletProvider({ children }: PropsWithChildren<ReactNode>) {
+export function AppWalletProvider({
+  children,
+}: PropsWithChildren<{ children?: ReactNode }>) {
   const {
     status,
     isLoading,
@@ -82,4 +84,3 @@ export const useWalletContext = () => {
   }
   return ctx;
 };
-

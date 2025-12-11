@@ -1,16 +1,22 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import QRCodeModule from 'react-qr-code';
 
 import { useActivityQuery } from '../../hooks/use-activities';
 import { useActivityCloseOperations } from '../../hooks/use-activity-close-operations';
 import { useActivityCloseView } from '../../hooks/use-activity-close-view';
 import { useActivityOperations } from '../../hooks/use-activity-operations';
 import { useBonusOperations } from '../../hooks/use-bonus-operations';
-import { useCurrentGame, useGameParticipations } from '../../hooks/use-game';
+import { useCurrentGame } from '../../hooks/use-game';
 import { useGameOperations } from '../../hooks/use-game-operations';
 import { useCurrentLottery } from '../../hooks/use-lottery';
+import { useLotteryOperations } from '../../hooks/use-lottery-operations';
 import { useMyParticipant } from '../../hooks/use-participant';
 import type { GameRewardMode } from '../../types/annual-party';
+
+// react-qr-code 在不同打包模式下可能以 default 或 named 匯出，這裡統一處理
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const QRCode = (QRCodeModule as any).default ?? QRCodeModule;
 
 export function OrganizerActivityDetailPage() {
   const params = useParams<{ activityId: string }>();
@@ -30,11 +36,10 @@ export function OrganizerActivityDetailPage() {
   const lotteryViewQuery = useCurrentLottery(activity ?? null);
   const gameViewQuery = useCurrentGame(activity ?? null);
   const game = gameViewQuery.data?.game ?? null;
-  const participationsQuery = useGameParticipations(game ?? null);
 
   const { createActivity, addPrizeFund } = useActivityOperations();
-  const { createBonusEvent, claimBonus } = useBonusOperations();
-  const { createLottery, executeLottery } = useGameSafeLotteryOps();
+  const { createBonusEvent } = useBonusOperations();
+  const { createLottery, executeLottery } = useLotteryOperations();
   const { createGame, revealGameAnswer } = useGameOperations();
   const { closeActivity, withdrawRemainingAfterClose } =
     useActivityCloseOperations();
@@ -159,6 +164,8 @@ export function OrganizerActivityDetailPage() {
     });
   };
 
+  const participantUrl = `${window.location.origin}${import.meta.env.BASE_URL}party/${activity.id}`;
+
   return (
     <div className="page-container">
       <h1 className="page-title">
@@ -214,6 +221,19 @@ export function OrganizerActivityDetailPage() {
             </span>
           </div>
         </div>
+      </section>
+
+      <section className="card section">
+        <h2 className="section-title">Participant QR Link</h2>
+        <p className="section-description">
+          員工可以掃描此 QRCode 進入簽到與活動參與頁面。
+        </p>
+        <div style={{ display: 'inline-block', padding: '0.75rem', background: '#050515', borderRadius: '0.75rem' }}>
+          <QRCode value={participantUrl} size={140} />
+        </div>
+        <p className="card-text mono" style={{ marginTop: '0.75rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+          {participantUrl}
+        </p>
       </section>
 
       <section className="card section">
@@ -523,29 +543,3 @@ export function OrganizerActivityDetailPage() {
     </div>
   );
 }
-
-function useGameSafeLotteryOps() {
-  const { createLottery, executeLottery, isPending } = useGameLotteryBridge();
-  return { createLottery, executeLottery, isPending };
-}
-
-function useGameLotteryBridge() {
-  // 為了避免與 hooks 檔案名稱衝突，這裡包一層內部 hook
-  const { createLottery, executeLottery, isPending } =
-    require('../../hooks/use-lottery-operations');
-  return { createLottery, executeLottery, isPending } as {
-    createLottery: (args: {
-      activityId: string;
-      activityObjectId: string;
-    }) => Promise<void>;
-    executeLottery: (args: {
-      activityId: string;
-      activityObjectId: string;
-      lotteryId: string;
-      lotteryObjectId: string;
-      clientSeed?: bigint;
-    }) => Promise<void>;
-    isPending: boolean;
-  };
-}
-

@@ -130,7 +130,6 @@ export const useMyParticipant = (
 export const useParticipants = (
   activityId: string | null,
 ): UseQueryResult<Participant[]> => {
-  const client = useIotaClient();
   const { network } = useIotaClientContext();
 
   const participantType = getParticipantType(network);
@@ -152,4 +151,3 @@ export const useParticipants = (
     },
   });
 };
-

@@ -1,8 +1,8 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { AppLayout } from './components/layouts/AppLayout';
 import { OrganizerLayout } from './components/layouts/OrganizerLayout';
-import { LandingPage } from './pages/LandingPage';
+import { ActivityHomePage } from './pages/ActivityHomePage';
 import { OrganizerActivitiesPage } from './pages/organizer/OrganizerActivitiesPage';
 import { OrganizerActivityDetailPage } from './pages/organizer/OrganizerActivityDetailPage';
 import { ParticipantActivityPage } from './pages/participant/ParticipantActivityPage';
@@ -13,7 +13,8 @@ export function AppRouter() {
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<Navigate to="/activities" replace />} />
+          <Route path="/activities" element={<ActivityHomePage />} />
 
           <Route path="/organizer" element={<OrganizerLayout />}>
             <Route index element={<OrganizerActivitiesPage />} />
@@ -31,4 +32,3 @@ export function AppRouter() {
     </BrowserRouter>
   );
 }
-

@@ -39,6 +39,20 @@ export interface Activity {
   currentGameId: string | null;
 }
 
+export interface ActivityView {
+  id: string;
+  organizer: string;
+  name: string;
+
+  status: ActivityStatus;
+
+  prizePoolAmount: bigint;
+  participantCount: number;
+
+  hasBonusEvent: boolean;
+  closePayoutAmount: bigint;
+}
+
 export interface Participant {
   id: string;
   activityId: string;
@@ -142,4 +156,3 @@ export interface ActivityCloseView {
   canClaimCloseReward: boolean;
   hasClaimedCloseReward: boolean;
 }
-

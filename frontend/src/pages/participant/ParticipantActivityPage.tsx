@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { useActivityQuery } from '../../hooks/use-activities';
-import { useActivityCloseOperations } from '../../hooks/use-activity-close-operations';
 import { useActivityCloseView } from '../../hooks/use-activity-close-view';
 import { useActivityOperations } from '../../hooks/use-activity-operations';
 import { useBonusOperations } from '../../hooks/use-bonus-operations';
@@ -37,12 +36,10 @@ export function ParticipantActivityPage() {
   const game = gameView?.game ?? null;
   const participationsQuery = useGameParticipations(game ?? null);
 
-  const { joinActivity, addPrizeFund } = useActivityOperations();
+  const { joinActivity } = useActivityOperations();
   const { claimBonus, claimCloseReward } = useBonusOperations();
   const { joinLottery } = useLotteryOperations();
   const { submitChoice, claimGameReward } = useGameOperations();
-  const { claimCloseReward: claimCloseRewardOrganizerSide } =
-    useActivityCloseOperations();
 
   const [lotteryAmountInput, setLotteryAmountInput] = useState('0');
   const [gameChoice, setGameChoice] = useState<number | null>(null);

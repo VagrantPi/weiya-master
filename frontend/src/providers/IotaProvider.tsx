@@ -1,9 +1,9 @@
-import type { PropsWithChildren } from 'react';
+import { useEffect, type PropsWithChildren, type ReactNode } from 'react';
 import type { NetworkConfig } from '@iota/dapp-kit';
-import { IotaClientProvider } from '@iota/dapp-kit';
+import { IotaClientProvider, WalletProvider as DappKitWalletProvider } from '@iota/dapp-kit';
+import { registerIotaSnapWallet } from '@liquidlink-lab/iota-snap-for-metamask';
 
 import { DEFAULT_NETWORK, NETWORK_CONFIG } from '../config/iota';
-import { WalletProvider } from '../contexts/WalletContext';
 
 const IOTA_NETWORKS: Record<string, NetworkConfig> = {
   [DEFAULT_NETWORK]: {
@@ -11,10 +11,16 @@ const IOTA_NETWORKS: Record<string, NetworkConfig> = {
   },
 };
 
-export function IotaProvider({ children }: PropsWithChildren) {
+export function IotaProvider({ children }: PropsWithChildren<{ children?: ReactNode }>) {
+  useEffect(() => {
+    registerIotaSnapWallet();
+  }, []);
+
   return (
     <IotaClientProvider networks={IOTA_NETWORKS} defaultNetwork={DEFAULT_NETWORK}>
-      <WalletProvider>{children}</WalletProvider>
+      <DappKitWalletProvider autoConnect chain={`iota:${DEFAULT_NETWORK}`}>
+        {children}
+      </DappKitWalletProvider>
     </IotaClientProvider>
   );
 }

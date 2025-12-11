@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { ConnectButton } from '@iota/dapp-kit';
 
-import { ConnectWalletButton } from '../wallet/ConnectWalletButton';
 import { useWallet } from '../../hooks/useWallet';
 
 export function AppLayout() {
@@ -32,7 +32,7 @@ export function AppLayout() {
               {shortAddress || 'Disconnected'}
             </span>
           </div>
-          <ConnectWalletButton />
+          <ConnectButton />
         </div>
       </header>
       <main className="app-main">
