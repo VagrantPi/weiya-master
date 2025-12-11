@@ -39,3 +39,21 @@ export interface Activity {
   currentGameId: string | null;
 }
 
+export interface Participant {
+  id: string;
+  activityId: string;
+  owner: string;
+
+  joined: boolean;
+  hasClaimedBonus: boolean;
+  hasClaimedCloseReward: boolean;
+}
+
+export interface MyParticipantState {
+  participant: Participant | null;
+  participantObjectId: string | null;
+
+  canClaimBonus: boolean;
+  canClaimCloseReward: boolean;
+}
+
