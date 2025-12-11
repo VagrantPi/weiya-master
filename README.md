@@ -117,7 +117,7 @@ repo-root/
 
   * Organizer address
   * Name
-  * Status (`OPEN`, `BONUS_READY`, `CLOSED`)
+  * Status (`OPEN`, `CLOSED`)
   * Prize pool
   * Participant count
   * Bonus info (`has_bonus_event`, `bonus_amount_per_user`)

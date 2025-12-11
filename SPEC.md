@@ -83,7 +83,7 @@
 ### 4.1 Enums
 
 ```move
-enum ActivityStatus { OPEN, BONUS_READY, CLOSED }
+enum ActivityStatus { OPEN, CLOSED }
 enum LotteryStatus { OPEN, DRAWN, CLOSED }
 enum GameStatus { OPEN, ANSWER_REVEALED, CLOSED }
 enum GameRewardMode { SINGLE, AVERAGE }
@@ -97,7 +97,7 @@ struct Activity has key {
     organizer: address,
     name: string::String,
 
-    status: ActivityStatus,       // OPEN / BONUS_READY / CLOSED
+    status: ActivityStatus,       // OPEN / CLOSED
 
     // IOTA 獎金池：實作上應為 Coin<Iota>，但這裡用抽象表示
     prize_pool_coin: Coin<Iota>,  // 活動掌管的一整包 IOTA
@@ -285,7 +285,7 @@ struct GameParticipation has key {
 1. 檢查：
 
    * caller 是 organizer
-   * `activity.status == OPEN` 或 `BONUS_READY`（依實作決定）
+   * `activity.status == OPEN`
    * `!activity.has_bonus_event`
    * `activity.participant_count > 0`
    * `total_required = bonus_per_user * participant_count`

@@ -15,7 +15,6 @@ module weiya_master::annual_party {
 
     public enum ActivityStatus has copy, drop, store {
         OPEN,
-        BONUS_READY,
         CLOSED,
     }
 
@@ -235,14 +234,13 @@ module weiya_master::annual_party {
     const E_GAME_NOT_OPEN: u64 = 16;
     const E_INVALID_GAME_CHOICE: u64 = 17;
     const E_ALREADY_SUBMITTED_CHOICE: u64 = 18;
-    const E_GAME_ANSWER_ALREADY_REVEALED: u64 = 19;
-    const E_GAME_NOT_ANSWER_REVEALED: u64 = 20;
-    const E_GAME_REWARD_ALREADY_CLAIMED: u64 = 21;
-    const E_NOT_GAME_WINNER: u64 = 22;
-    const E_ACTIVITY_NOT_CLOSED: u64 = 23;
-    const E_CLOSE_REWARD_ALREADY_CLAIMED: u64 = 24;
-    const E_CLOSE_PAYOUT_ZERO: u64 = 25;
-    const E_REMAINING_POOL_ZERO: u64 = 26;
+    const E_GAME_NOT_ANSWER_REVEALED: u64 = 19;
+    const E_GAME_REWARD_ALREADY_CLAIMED: u64 = 20;
+    const E_NOT_GAME_WINNER: u64 = 21;
+    const E_ACTIVITY_NOT_CLOSED: u64 = 22;
+    const E_CLOSE_REWARD_ALREADY_CLAIMED: u64 = 23;
+    const E_CLOSE_PAYOUT_ZERO: u64 = 24;
+    const E_REMAINING_POOL_ZERO: u64 = 25;
 
     //
     // 內部 IOTA 代幣抽象（目前僅用 u64 模擬）
@@ -512,9 +510,10 @@ module weiya_master::annual_party {
             abort E_ACTIVITY_CLOSED;
         };
 
-        // 單一活動同時間僅允許一個開啟中的樂透。
-        // 目前僅透過 lottery_id 儲存 ID，無法載入並檢查舊 Lottery 的狀態，
-        // 因此當已有 lottery_id 時視為已有活動中的樂透。
+        // 單一活動「同一時間」僅允許一個開啟中的樂透。
+        // 一輪樂透執行完畢（DRAWN）後，execute_lottery 會將 activity.lottery_id 重設為 None，
+        // 之後 organizer 可以再呼叫 create_lottery 開啟下一輪。
+        // 這裡僅透過 lottery_id 是否為 Some 來表示是否已有一個開啟中的樂透。
         if (!option::is_none(&activity.lottery_id)) {
             abort E_LOTTERY_NOT_OPEN;
         };
@@ -648,6 +647,15 @@ module weiya_master::annual_party {
             winner_addr,
             amount: amount_total,
         });
+
+        // 一輪樂透結束後，若 activity.lottery_id 指向的正是此 lottery_id，
+        // 則將其重設為 None，讓 organizer 之後可以再建立下一輪樂透。
+        if (option::is_some<ID>(&activity.lottery_id)) {
+            let stored_id_ref = option::borrow<ID>(&activity.lottery_id);
+            if (*stored_id_ref == lottery_id) {
+                activity.lottery_id = option::none<ID>();
+            };
+        };
     }
 
     //
@@ -920,7 +928,24 @@ module weiya_master::annual_party {
             abort E_GAME_REWARD_ALREADY_CLAIMED;
         };
 
-        // 確認此 participation 確實屬於該 Game（透過 participation_ids 檢查）
+        // 僅允許「目前活動所指向的遊戲」可以被 claim。
+        // activity.current_game_id 代表此活動目前仍在可 claim 的 Game；
+        // 一旦建立了新遊戲，current_game_id 會更新為新的 game_id，
+        // 舊遊戲即使曾經 ANSWER_REVEALED，也不再允許 claim（視為放棄）。
+        if (!option::is_some<ID>(&activity.current_game_id)) {
+            abort E_GAME_NOT_ANSWER_REVEALED;
+        };
+        let current_game_id_ref = option::borrow<ID>(&activity.current_game_id);
+        let this_game_id = object::id(game);
+        if (*current_game_id_ref != this_game_id) {
+            abort E_GAME_NOT_ANSWER_REVEALED;
+        };
+
+        // 這裡使用 Game 內的 Participation Index（participation_ids / participation_choices）
+        // 來確認「caller 是否真的對這場 Game 有一筆有效 participation」，而不是單純信任
+        // GameParticipation 自己的欄位。真正的領獎資格是由 Game 的索引說了算，
+        // GameParticipation 只用來記錄這筆 participation 是否已經成功完成領獎。
+        // 底下會先檢查 participation_ids 是否包含這筆 participation 的 ID。
         let pid = object::id(participation);
         let mut found = false;
         let mut idx: u64 = 0;
@@ -1023,6 +1048,22 @@ module weiya_master::annual_party {
 
         let total = activity.prize_pool_coin.value;
         let count = activity.participant_count;
+
+        // 當沒有任何 participant 時，關閉活動仍然合法：
+        // close_payout_amount 會被設為 0，全部獎金保留在 remaining_pool_after_close，
+        // 之後可由 organizer 透過 withdraw_remaining_after_close 全數領回。
+        if (count == 0) {
+            activity.close_payout_amount = 0;
+            activity.remaining_pool_after_close = total;
+            activity.status = ActivityStatus::CLOSED;
+
+            event::emit(ActivityClosedEvent {
+                activity_id,
+                close_payout_amount: 0,
+            });
+            return;
+        };
+
         let avg = total / count;
 
         activity.close_payout_amount = avg;
