@@ -11,13 +11,13 @@ import { useGameOperations } from '../../hooks/use-game-operations';
 import { useCurrentLottery } from '../../hooks/use-lottery';
 import { useLotteryOperations } from '../../hooks/use-lottery-operations';
 import { useMyParticipant } from '../../hooks/use-participant';
-import { useWalletConnection } from '../../hooks/useWalletConnection';
+import { useWallet } from '../../hooks/useWallet';
 
 export function ParticipantActivityPage() {
   const params = useParams<{ activityId: string }>();
   const activityId = params.activityId ?? '';
 
-  const { currentAddress, isConnected } = useWalletConnection();
+  const { currentAddress, isConnected } = useWallet();
 
   const { data: activity, isLoading, error } = useActivityQuery(activityId);
   const { data: myParticipantState } = useMyParticipant(
@@ -344,4 +344,3 @@ export function ParticipantActivityPage() {
     </div>
   );
 }
-

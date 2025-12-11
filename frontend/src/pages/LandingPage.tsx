@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 
-import { useWalletConnection } from '../hooks/useWalletConnection';
+import { useWallet } from '../hooks/useWallet';
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { currentAddress, isConnected } = useWalletConnection();
+  const { currentAddress, isConnected } = useWallet();
 
   return (
     <div className="page-container">
@@ -45,4 +45,3 @@ export function LandingPage() {
     </div>
   );
 }
-

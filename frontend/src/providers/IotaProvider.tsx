@@ -1,26 +1,20 @@
 import type { PropsWithChildren } from 'react';
-import { useEffect } from 'react';
 import type { NetworkConfig } from '@iota/dapp-kit';
-import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { registerIotaSnapWallet } from '@liquidlink-lab/iota-snap-for-metamask';
+import { IotaClientProvider } from '@iota/dapp-kit';
+
+import { DEFAULT_NETWORK, NETWORK_CONFIG } from '../config/iota';
+import { WalletProvider } from '../contexts/WalletContext';
 
 const IOTA_NETWORKS: Record<string, NetworkConfig> = {
-  devnet: {
-    url: import.meta.env.VITE_IOTA_RPC_URL ?? 'http://localhost:1769',
+  [DEFAULT_NETWORK]: {
+    url: NETWORK_CONFIG[DEFAULT_NETWORK].rpcUrl,
   },
 };
 
 export function IotaProvider({ children }: PropsWithChildren) {
-  useEffect(() => {
-    registerIotaSnapWallet();
-  }, []);
-
   return (
-    <IotaClientProvider networks={IOTA_NETWORKS} defaultNetwork="devnet">
-      <WalletProvider autoConnect chain="iota:devnet">
-        {children}
-      </WalletProvider>
+    <IotaClientProvider networks={IOTA_NETWORKS} defaultNetwork={DEFAULT_NETWORK}>
+      <WalletProvider>{children}</WalletProvider>
     </IotaClientProvider>
   );
 }
-

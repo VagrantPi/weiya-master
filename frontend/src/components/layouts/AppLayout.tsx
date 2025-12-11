@@ -1,18 +1,12 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 
-import { useWalletConnection } from '../../hooks/useWalletConnection';
+import { ConnectWalletButton } from '../wallet/ConnectWalletButton';
+import { useWallet } from '../../hooks/useWallet';
 
 export function AppLayout() {
   const navigate = useNavigate();
-  const {
-    currentAddress,
-    network,
-    isConnected,
-    connectWallet,
-    disconnectWallet,
-    isConnecting,
-  } = useWalletConnection();
+  const { currentAddress } = useWallet();
 
   const shortAddress =
     currentAddress && currentAddress.length > 12
@@ -33,27 +27,12 @@ export function AppLayout() {
         </button>
         <div className="app-navbar-right">
           <div className="app-navbar-pill">
-            <span className="pill-label">Network</span>
-            <span className="pill-value">{network || 'unknown'}</span>
-          </div>
-          <div className="app-navbar-pill">
             <span className="pill-label">Account</span>
             <span className="pill-value">
-              {shortAddress || (isConnected ? 'N/A' : 'Disconnected')}
+              {shortAddress || 'Disconnected'}
             </span>
           </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={isConnected ? disconnectWallet : connectWallet}
-            disabled={isConnecting}
-          >
-            {isConnecting
-              ? '連線中...'
-              : isConnected
-                ? 'Disconnect IOTA Snap'
-                : 'Connect IOTA Snap'}
-          </button>
+          <ConnectWalletButton />
         </div>
       </header>
       <main className="app-main">
@@ -63,4 +42,3 @@ export function AppLayout() {
     </div>
   );
 }
-
