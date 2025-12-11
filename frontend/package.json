@@ -10,9 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@iota/dapp-kit": "^0.8.0",
+    "@iota/iota-sdk": "^1.9.0",
     "@liquidlink-lab/iota-snap-for-metamask": "^1.9.1",
+    "@tanstack/react-query": "^5.90.12",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.10.1",
+    "sonner": "^2.0.7",
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

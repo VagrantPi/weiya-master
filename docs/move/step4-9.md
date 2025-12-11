@@ -624,7 +624,7 @@ Both MUST be fully formed code blocks.
 
 ```
 You are Codex working on the IOTA Move project defined by [SPEC.md](SPEC.md) (with eligible_flags)
-and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+and [roadmap.md](docs/move/roadmap.md).
 
 Your task:
 Implement **Step 6 — Activity Closing & Rewards** inside:
@@ -848,7 +848,7 @@ as a complete code block.
 ## Step 7（樂透 & 遊戲收尾整合 / cross-object reference 測試 / event 全量驗證
 
 ```
-You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [roadmap.md](docs/move/roadmap.md).
 
 Your task:
 Implement Step 7 — Lottery Module inside:
@@ -962,7 +962,7 @@ This test suite MUST validate Step 7:
     join_lottery
     execute_lottery
 
-Use EXACT rules from [SPEC.md](SPEC.md) + [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+Use EXACT rules from [SPEC.md](SPEC.md) + [roadmap.md](docs/move/roadmap.md).
 
 ============================================================
 TEST 1 — test_create_lottery_success
@@ -1052,7 +1052,7 @@ as a complete code block.
 ## Step 8A：四選一遊戲（Game）核心互動邏輯：submit_choice + reveal_game_answer
 
 ```
-You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [roadmap.md](docs/move/roadmap.md).
 
 Your task:
 Implement Step 8A — Game Interaction Logic inside:
@@ -1168,7 +1168,7 @@ This test suite MUST validate Step 8A:
     - submit_choice
     - reveal_game_answer
 
-Use EXACT rules from [SPEC.md](SPEC.md) + [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+Use EXACT rules from [SPEC.md](SPEC.md) + [roadmap.md](docs/move/roadmap.md).
 
 ============================================================
 TEST 1 — test_submit_choice_success
@@ -1268,7 +1268,7 @@ as a full code block.
 ## Step 8B：四選一遊戲（Game）獎勵領取 claim_game_reward
 
 ```
-You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+You are Codex working on the IOTA Move smart contract defined in [SPEC.md](SPEC.md) and [roadmap.md](docs/move/roadmap.md).
 
 Your task:
 Implement Step 8B — claim_game_reward inside:

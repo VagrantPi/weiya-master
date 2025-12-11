@@ -4,7 +4,7 @@
 You are Codex working on a Move project created with `iota move new contracts`.
 
 Goal:
-Implement Step 0 of [MoveDevRoadmap.md](docs/MoveDevRoadmap.md)  by generating the full type skeleton for the Annual Party DApp based on [SPEC.md](SPEC.md)  and [AGENTS.md](AGENTS.md) .
+Implement Step 0 of [roadmap.md](docs/move/roadmap.md)  by generating the full type skeleton for the Annual Party DApp based on [SPEC.md](SPEC.md)  and [AGENTS.md](AGENTS.md) .
 
 Instructions:
 - Edit `contracts/sources/annual_party.move`
@@ -60,7 +60,7 @@ Output:
 ## ✅ Codex Prompt：Step 1（create_activity / join_activity / add_prize_fund）
 
 ```
-Proceed with Step 1 of [MoveDevRoadmap.md](docs/MoveDevRoadmap.md).
+Proceed with Step 1 of [roadmap.md](docs/move/roadmap.md).
 
 Task:
 Implement the following entry functions inside `contracts/sources/annual_party.move`:
@@ -157,7 +157,7 @@ Output:
 ## ✅ Codex Prompt：Step 2 – Bonus Event（create_bonus_event / claim_bonus）
 
 ```
-You are Codex working on the Move project described in [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md) .
+You are Codex working on the Move project described in [SPEC.md](SPEC.md) and [roadmap.md](docs/move/roadmap.md) .
 
 Goal:
 Implement Step 2 of the roadmap:
@@ -276,7 +276,7 @@ Return the FULL file `bonus_tests.move` in one complete code block.
 ## ✅ Codex Prompt：Step 3 – 實作 draw_prize（抽獎）
 
 ```
-You are Codex working on the Move project defined by [SPEC.md](SPEC.md) and [MoveDevRoadmap.md](docs/MoveDevRoadmap.md) .
+You are Codex working on the Move project defined by [SPEC.md](SPEC.md) and [roadmap.md](docs/move/roadmap.md) .
 
 Goal:
 Implement Step 3 — draw_prize — inside `contracts/sources/annual_party.move`
