@@ -57,3 +57,24 @@ export interface MyParticipantState {
   canClaimCloseReward: boolean;
 }
 
+export type LotteryStatus = 'OPEN' | 'DRAWN' | 'CLOSED';
+
+export interface Lottery {
+  id: string;
+  activityId: string;
+  status: LotteryStatus;
+
+  potAmount: bigint;
+  participants: string[];
+  winner: string | null;
+}
+
+export interface LotteryView {
+  lottery: Lottery | null;
+
+  isOpen: boolean;
+  isDrawn: boolean;
+  isClosed: boolean;
+  participantCount: number;
+}
+
