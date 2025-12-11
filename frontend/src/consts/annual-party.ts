@@ -55,3 +55,14 @@ export const getGameParticipationType = (
   const { packageId, module } = getAnnualPartyConfig(network);
   return `${packageId}::${module}::GameParticipation`;
 };
+
+export const getAnnualPartyModuleTarget = (
+  network: Network | string | undefined,
+) => {
+  const { packageId, module } = getAnnualPartyConfig(network);
+  return {
+    packageId,
+    module,
+    fn: (name: string) => `${packageId}::${module}::${name}`,
+  };
+};

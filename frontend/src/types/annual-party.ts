@@ -128,3 +128,18 @@ export interface GameParticipationView {
   canClaim: boolean;
 }
 
+export interface ActivityCloseView {
+  activity: Activity | null;
+  myParticipant: Participant | null;
+
+  isClosed: boolean;
+  canClose: boolean;
+  canWithdrawRemaining: boolean;
+
+  closePayoutAmount: bigint;
+  remainingPoolAfterClose: bigint;
+
+  canClaimCloseReward: boolean;
+  hasClaimedCloseReward: boolean;
+}
+
