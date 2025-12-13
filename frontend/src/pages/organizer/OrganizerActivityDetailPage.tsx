@@ -170,377 +170,52 @@ export function OrganizerActivityDetailPage() {
   return (
     <div className="page-container">
       <h1 className="page-title">
-        Activity Detail - <span className="mono">{activity.name}</span>
+        <span className="mono">{activity.name}</span>
+        <br />
+        <span style={{ fontSize: '1.5rem' }}>Organizer Command Center</span>
       </h1>
 
       {!isOrganizer ? (
         <p className="warning-text">
-          注意：目前錢包地址並非此活動 Organizer，只能檢視基本資訊。
+          Attention: The connected wallet is not the organizer of this activity. Read-only mode.
         </p>
-      ) : null}
-
-      <section className="card section">
-        <h2 className="section-title">Overview</h2>
-        <div className="section-grid">
-          <div className="section-item">
-            <span className="meta-label">Organizer</span>
-            <span className="meta-value mono">
-              {activity.organizer}
-              {isOrganizer ? '（You）' : ''}
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Status</span>
-            <span
-              className={
-                activity.status === 'OPEN'
-                  ? 'status-tag status-open'
-                  : 'status-tag status-closed'
-              }
-            >
-              {activity.status}
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Participants</span>
-            <span className="meta-value">{activity.participantCount}</span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Prize Pool</span>
-            <span className="meta-value">{formatIota(activity.prizePool)} IOTA</span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Close Payout Amount</span>
-            <span className="meta-value">
-              {formatIota(closeView.closePayoutAmount)} IOTA
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Remaining After Close</span>
-            <span className="meta-value">
-              {formatIota(closeView.remainingPoolAfterClose)} IOTA
-            </span>
-          </div>
-        </div>
-      </section>
-
-      <section className="card section">
-        <h2 className="section-title">Participant QR Link</h2>
-        <p className="section-description">
-          員工可以掃描此 QRCode 進入簽到與活動參與頁面。
-        </p>
-        <div style={{ display: 'inline-block', padding: '0.75rem', background: '#050515', borderRadius: '0.75rem' }}>
-          <QRCode value={participantUrl} size={140} />
-        </div>
-        <p className="card-text mono" style={{ marginTop: '0.75rem', fontSize: '0.8rem', wordBreak: 'break-all' }}>
-          {participantUrl}
-        </p>
-      </section>
-
-      <section className="card section">
-        <h2 className="section-title">Bonus &amp; Prize Draw</h2>
-        <p className="section-description">
-          管理參加獎與一次性抽獎。實際鏈上邏輯以 Move 模組為準。
-        </p>
-        <div className="section-grid">
-          <div className="section-item">
-            <span className="meta-label">Has Bonus Event</span>
-            <span className="meta-value">
-              {activity.hasBonusEvent ? 'Yes' : 'No'}
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Bonus per User</span>
-            <span className="meta-value">
-              {formatIota(activity.bonusAmountPerUser)} IOTA
-            </span>
-          </div>
-        </div>
-        {isOrganizer ? (
-          <div className="section-actions">
-            <div className="field-row">
-              <label className="field-label" htmlFor="bonusPerUser">
-                每位員工參加獎金額
-              </label>
-              <input
-                id="bonusPerUser"
-                className="field-input"
-                value={bonusPerUserInput}
-                onChange={(e) => setBonusPerUserInput(e.target.value)}
-              />
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleCreateBonus}
-              >
-                建立 Bonus Event
-              </button>
-            </div>
-
-            <div className="field-row">
-              <label className="field-label" htmlFor="prizeFund">
-                加碼獎金池金額
-              </label>
-              <input
-                id="prizeFund"
-                className="field-input"
-                value={prizeFundInput}
-                onChange={(e) => setPrizeFundInput(e.target.value)}
-              />
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleAddPrizeFund}
-              >
-                Add Prize Fund
-              </button>
-            </div>
-
-            <div className="field-row">
-              <label className="field-label" htmlFor="drawAmount">
-                抽獎總額（暫時 placeholder）
-              </label>
-              <input
-                id="drawAmount"
-                className="field-input"
-                value={drawAmountInput}
-                onChange={(e) => setDrawAmountInput(e.target.value)}
-              />
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleDrawPrize}
-              >
-                執行抽獎（暫用）
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="card section">
-        <h2 className="section-title">Lottery</h2>
-        <p className="section-description">
-          控管本活動目前開啟中的樂透，員工在 Participant 頁面參與。
-        </p>
-        <div className="section-grid">
-          <div className="section-item">
-            <span className="meta-label">Status</span>
-            <span className="meta-value">
-              {lotteryView?.lottery?.status ?? 'N/A'}
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Participants</span>
-            <span className="meta-value">
-              {lotteryView?.participantCount ?? 0}
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Pot Amount</span>
-            <span className="meta-value">
-              {lotteryView?.lottery
-                ? formatIota(lotteryView.lottery.potAmount)
-                : '0'}{' '}
-              IOTA
-            </span>
-          </div>
-        </div>
-        {isOrganizer ? (
-          <div className="section-actions">
-            {!lotteryView?.lottery ? (
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleCreateLottery}
-              >
-                Create Lottery
-              </button>
-            ) : null}
-            {lotteryView?.isOpen && lotteryView.participantCount > 0 ? (
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleExecuteLottery}
-              >
-                Execute Lottery
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="card section">
-        <h2 className="section-title">Game</h2>
-        <p className="section-description">
-          管理四選一遊戲（問題、選項、獎勵模式與公布正解）。
-        </p>
-
-        <div className="section-grid">
-          <div className="section-item">
-            <span className="meta-label">Status</span>
-            <span className="meta-value">{gameView?.game?.status ?? 'N/A'}</span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Question</span>
-            <span className="meta-value">
-              {gameView?.game?.question || '尚未建立遊戲'}
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Reward Amount</span>
-            <span className="meta-value">
-              {gameView?.game
-                ? formatIota(gameView.game.rewardAmount)
-                : '0'}{' '}
-              IOTA
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Reward Mode</span>
-            <span className="meta-value">
-              {gameView?.game?.rewardMode ?? '-'}
-            </span>
-          </div>
-        </div>
-
-        {isOrganizer ? (
-          <div className="section-actions">
-            {!gameView?.game || gameView.isClosed ? (
-              <div className="field-stack">
-                <label className="field-label" htmlFor="gameQuestion">
-                  問題內容
-                </label>
-                <input
-                  id="gameQuestion"
-                  className="field-input"
-                  value={gameQuestion}
-                  onChange={(e) => setGameQuestion(e.target.value)}
-                />
-                <div className="field-grid-2">
-                  {gameOptions.map((opt, idx) => (
-                    <input
-                      key={idx}
-                      className="field-input"
-                      placeholder={`選項 ${idx + 1}`}
-                      value={opt}
-                      onChange={(e) => {
-                        const next = [...gameOptions];
-                        next[idx] = e.target.value;
-                        setGameOptions(next);
-                      }}
-                    />
-                  ))}
-                </div>
-                <div className="field-row">
-                  <label className="field-label" htmlFor="gameRewardAmount">
-                    獎勵總額
-                  </label>
-                  <input
-                    id="gameRewardAmount"
-                    className="field-input"
-                    value={gameRewardAmount}
-                    onChange={(e) => setGameRewardAmount(e.target.value)}
-                  />
-                  <select
-                    className="field-input"
-                    value={gameRewardMode}
-                    onChange={(e) =>
-                      setGameRewardMode(e.target.value as GameRewardMode)
-                    }
-                  >
-                    <option value="SINGLE">SINGLE</option>
-                    <option value="AVERAGE">AVERAGE</option>
-                  </select>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={handleCreateGame}
-                  >
-                    建立新遊戲
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {gameView?.isOpen && game ? (
-              <div className="field-row">
-                <label className="field-label" htmlFor="correctOption">
-                  公布正確選項（1~4）
-                </label>
-                <input
-                  id="correctOption"
-                  className="field-input"
-                  value={correctOptionInput}
-                  onChange={(e) => setCorrectOptionInput(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={handleRevealGameAnswer}
-                >
-                  公布答案
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="card section">
-        <h2 className="section-title">Close &amp; Settlement</h2>
-        <p className="section-description">
-          控管活動關閉與結算，員工會在 Participant 頁面自行領取 close reward。
-        </p>
-
-        <div className="section-grid">
-          <div className="section-item">
-            <span className="meta-label">Status</span>
-            <span className="meta-value">
-              {closeView.isClosed ? 'CLOSED' : 'OPEN'}
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Participants</span>
-            <span className="meta-value">{activity.participantCount}</span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Close Payout Amount</span>
-            <span className="meta-value">
-              {formatIota(closeView.closePayoutAmount)} IOTA
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Remaining Pool</span>
-            <span className="meta-value">
-              {formatIota(closeView.remainingPoolAfterClose)} IOTA
-            </span>
-          </div>
-        </div>
-
-        {isOrganizer ? (
-          <div className="section-actions">
-            {!closeView.isClosed && closeView.canClose ? (
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={handleCloseActivity}
-              >
-                關閉活動並計算銷帳
-              </button>
-            ) : null}
-            {closeView.isClosed && closeView.canWithdrawRemaining ? (
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleWithdrawRemaining}
-              >
-                領回剩餘獎金
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
+      ) : (
+        <OrganizerDashboard
+          activity={activity}
+          isOrganizer={isOrganizer}
+          closeView={closeView}
+          lotteryView={lotteryView}
+          gameView={gameView}
+          participantUrl={participantUrl}
+          bonusPerUserInput={bonusPerUserInput}
+          prizeFundInput={prizeFundInput}
+          drawAmountInput={drawAmountInput}
+          gameQuestion={gameQuestion}
+          gameOptions={gameOptions}
+          gameRewardAmount={gameRewardAmount}
+          gameRewardMode={gameRewardMode}
+          correctOptionInput={correctOptionInput}
+          setBonusPerUserInput={setBonusPerUserInput}
+          setPrizeFundInput={setPrizeFundInput}
+          setDrawAmountInput={setDrawAmountInput}
+          setGameQuestion={setGameQuestion}
+          setGameOptions={setGameOptions}
+          setGameRewardAmount={setGameRewardAmount}
+  
+          setGameRewardMode={setGameRewardMode}
+          setCorrectOptionInput={setCorrectOptionInput}
+          handleCreateBonus={handleCreateBonus}
+          handleAddPrizeFund={handleAddPrizeFund}
+          handleDrawPrize={handleDrawPrize}
+          handleCreateLottery={handleCreateLottery}
+          handleExecuteLottery={handleExecuteLottery}
+          handleCreateGame={handleCreateGame}
+          handleRevealGameAnswer={handleRevealGameAnswer}
+          handleCloseActivity={handleCloseActivity}
+          handleWithdrawRemaining={handleWithdrawRemaining}
+          formatIota={formatIota}
+        />
+      )}
     </div>
   );
 }

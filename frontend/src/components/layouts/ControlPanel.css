@@ -1,0 +1,45 @@
+.control-panel {
+  background-color: var(--color-background-panel, #140533);
+  border: 1px solid var(--color-border-default, #2a0c5c);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.control-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--color-border-default, #2a0c5c);
+  clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 0 100%);
+}
+
+.control-panel-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent-primary, #00f6ff);
+  text-shadow: 0 0 4px var(--color-accent-primary, #00f6ff);
+  margin: 0;
+}
+
+.control-panel-status {
+  font-family: var(--font-family-main);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  background-color: var(--color-border-default, #2a0c5c);
+  color: var(--color-text-secondary, #a0a0c0);
+  text-transform: uppercase;
+}
+
+.control-panel-body {
+  padding: 1rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}

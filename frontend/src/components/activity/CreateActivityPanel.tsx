@@ -84,7 +84,7 @@ export function CreateActivityPanel({
       </div>
       <button
         type="submit"
-        className="btn-primary"
+        className="btn"
         disabled={isDisabled}
       >
         {isCreating ? '建立中...' : '建立活動'}

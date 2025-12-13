@@ -97,7 +97,7 @@ export const ActivityClosePanel: FC<ActivityClosePanelProps> = ({
           {activity.status === 'OPEN' ? (
             <button
               type="button"
-              className="btn-danger"
+              className="btn"
               onClick={handleCloseActivity}
               disabled={closeOps.isClosing}
             >
@@ -108,7 +108,7 @@ export const ActivityClosePanel: FC<ActivityClosePanelProps> = ({
           {activity.status === 'CLOSED' && canWithdrawRemaining ? (
             <button
               type="button"
-              className="btn-secondary"
+              className="btn"
               onClick={handleWithdrawRemaining}
               disabled={closeOps.isWithdrawing}
             >
@@ -127,7 +127,7 @@ export const ActivityClosePanel: FC<ActivityClosePanelProps> = ({
           ) : canClaimCloseReward ? (
             <button
               type="button"
-              className="btn-primary"
+              className="btn"
               onClick={handleClaimCloseReward}
               disabled={closeOps.isClaiming}
             >

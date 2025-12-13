@@ -1,0 +1,65 @@
+.participant-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.action-feedback {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  text-align: right;
+  margin: 0;
+}
+
+.game-card-body {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.game-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.btn-game-option {
+  padding: 1rem;
+  font-size: 1rem;
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: 1px solid var(--color-border-default);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-game-option:hover {
+  background-color: rgba(0, 246, 255, 0.1);
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+}
+
+.btn-game-option.active {
+  background-color: var(--color-accent-primary);
+  color: var(--color-background-dark);
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 15px var(--color-accent-primary);
+}
+
+.btn-game-option:disabled {
+    filter: grayscale(50%) brightness(0.8);
+    cursor: not-allowed;
+}
+
+.game-reveal {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border-default);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+}

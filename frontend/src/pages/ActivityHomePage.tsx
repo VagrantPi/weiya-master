@@ -91,18 +91,6 @@ export function ActivityHomePage() {
             >
               我建立的
             </button>
-            <button
-              type="button"
-              className={
-                activeTab === 'joined'
-                  ? 'activity-tab activity-tab-active'
-                  : 'activity-tab'
-              }
-              onClick={() => setActiveTab('joined')}
-              disabled
-            >
-              我參加的（之後支援）
-            </button>
           </div>
           <ActivityList
             activities={displayedActivities}

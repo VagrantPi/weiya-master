@@ -1,9 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;700&display=swap');
+
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text',
-    'Segoe UI', sans-serif;
+  /* Font */
+  --font-family-main: 'Oxanium', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Cyberpunk Color Palette */
+  --color-background-dark: #0d0221;
+  --color-background-panel: #140533;
+  --color-text-primary: #f0f0f0;
+  --color-text-secondary: #a0a0c0;
+  --color-accent-primary: #00f6ff;
+  --color-accent-secondary: #f500a8;
+  --color-border-default: #2a0c5c;
+  --color-border-glow: rgba(0, 246, 255, 0.7);
+
+  font-family: var(--font-family-main);
   line-height: 1.5;
   font-weight: 400;
+
   color-scheme: dark;
+  color: var(--color-text-primary);
+  background-color: var(--color-background-dark);
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -20,12 +38,19 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #050515;
-  color: #f6f6ff;
+  background-color: var(--color-background-dark);
+  color: var(--color-text-primary);
 }
 
 a {
-  color: inherit;
+  color: var(--color-accent-primary);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+a:hover {
+  color: var(--color-text-primary);
+  text-shadow: 0 0 5px var(--color-accent-primary);
 }
 
 button {
