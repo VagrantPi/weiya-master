@@ -5,6 +5,9 @@ import QRCodeModule from 'react-qr-code';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const QRCode = (QRCodeModule as any).default ?? QRCodeModule;
 
+const ensureTrailingSlash = (value: string) =>
+  value.endsWith('/') ? value : `${value}/`;
+
 interface ActivityDetailView {
   id: string;
   organizer: string;
@@ -48,10 +51,11 @@ export const ActivityHeader: FC<ActivityHeaderProps> = ({
     void onJoin();
   };
 
-  // 產生活動參與用的 QRCode URL（導向 Participant 活動頁）
-  const participantUrl = `${window.location.origin}${
-    import.meta.env.BASE_URL
-  }party/${activity.id}`;
+  const appBaseUrl = ensureTrailingSlash(
+    (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim() ||
+      `${window.location.origin}${import.meta.env.BASE_URL}`,
+  );
+  const participantUrl = new URL(`activities/${activity.id}`, appBaseUrl).toString();
 
   return (
     <header className="card section activity-header">
@@ -65,12 +69,35 @@ export const ActivityHeader: FC<ActivityHeaderProps> = ({
             <div
               style={{
                 display: 'inline-block',
-                padding: '0.5rem',
-                background: '#050515',
+                padding: '0.75rem',
+                background: '#ffffff',
                 borderRadius: '0.75rem',
               }}
             >
-              <QRCode value={participantUrl} size={120} />
+              <QRCode
+                value={participantUrl}
+                size={140}
+                bgColor="#ffffff"
+                fgColor="#000000"
+              />
+            </div>
+            <div
+              style={{
+                marginTop: '0.75rem',
+                display: 'flex',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+              }}
+            >
+              <a
+                className="mono"
+                href={participantUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {participantUrl}
+              </a>
             </div>
           </div>
         ) : null}
