@@ -1,5 +1,8 @@
 module weiya_master::integration_flow_tests {
     use weiya_master::annual_party;
+    use iota::balance;
+    use iota::coin;
+    use iota::iota::IOTA;
     use iota::tx_context;
     use iota::object;
     use std::string;
@@ -17,7 +20,8 @@ module weiya_master::integration_flow_tests {
 
         // 建立活動與初始獎金池
         let name = string::utf8(b"Integration Activity");
-        annual_party::create_activity(name, 1000, &mut ctx);
+        let fund = coin::from_balance(balance::create_for_testing<IOTA>(1000), &mut ctx);
+        annual_party::create_activity(name, 1000, fund, &mut ctx);
 
         // 建立並刪除一個臨時 UID，避免未使用 key 警告
         let uid = object::new(&mut ctx);

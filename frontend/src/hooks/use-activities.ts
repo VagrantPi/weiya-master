@@ -100,9 +100,10 @@ export const mapActivityFromObject = (obj: IotaObjectResponse): Activity => {
   const status = parseStatus(rawFields.status);
 
   const prizeCoin = rawFields.prize_pool_coin ?? {};
-  const prizeValue =
+  const prizeValueRaw =
     prizeCoin?.fields?.value ??
     prizeCoin?.value ??
+    rawFields.prize_pool_coin ??
     rawFields.prize_pool ??
     0;
 
@@ -134,7 +135,7 @@ export const mapActivityFromObject = (obj: IotaObjectResponse): Activity => {
     organizer,
     name,
     status,
-    prizePool: toBigIntSafe(prizeValue),
+    prizePool: toBigIntSafe(prizeValueRaw),
     participantCount,
     hasBonusEvent,
     bonusAmountPerUser,

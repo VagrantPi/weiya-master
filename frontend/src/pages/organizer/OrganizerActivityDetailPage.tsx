@@ -13,6 +13,7 @@ import { useCurrentLottery } from '../../hooks/use-lottery';
 import { useLotteryOperations } from '../../hooks/use-lottery-operations';
 import { useMyParticipant } from '../../hooks/use-participant';
 import type { GameRewardMode } from '../../types/annual-party';
+import { formatIota } from '../../utils/iotaUnits';
 
 // react-qr-code 在不同打包模式下可能以 default 或 named 匯出，這裡統一處理
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -206,18 +207,18 @@ export function OrganizerActivityDetailPage() {
           </div>
           <div className="section-item">
             <span className="meta-label">Prize Pool</span>
-            <span className="meta-value">{activity.prizePool.toString()} IOTA</span>
+            <span className="meta-value">{formatIota(activity.prizePool)} IOTA</span>
           </div>
           <div className="section-item">
             <span className="meta-label">Close Payout Amount</span>
             <span className="meta-value">
-              {closeView.closePayoutAmount.toString()} IOTA
+              {formatIota(closeView.closePayoutAmount)} IOTA
             </span>
           </div>
           <div className="section-item">
             <span className="meta-label">Remaining After Close</span>
             <span className="meta-value">
-              {closeView.remainingPoolAfterClose.toString()} IOTA
+              {formatIota(closeView.remainingPoolAfterClose)} IOTA
             </span>
           </div>
         </div>
@@ -251,7 +252,7 @@ export function OrganizerActivityDetailPage() {
           <div className="section-item">
             <span className="meta-label">Bonus per User</span>
             <span className="meta-value">
-              {activity.bonusAmountPerUser.toString()} IOTA
+              {formatIota(activity.bonusAmountPerUser)} IOTA
             </span>
           </div>
         </div>
@@ -339,7 +340,7 @@ export function OrganizerActivityDetailPage() {
             <span className="meta-label">Pot Amount</span>
             <span className="meta-value">
               {lotteryView?.lottery
-                ? lotteryView.lottery.potAmount.toString()
+                ? formatIota(lotteryView.lottery.potAmount)
                 : '0'}{' '}
               IOTA
             </span>
@@ -390,7 +391,7 @@ export function OrganizerActivityDetailPage() {
             <span className="meta-label">Reward Amount</span>
             <span className="meta-value">
               {gameView?.game
-                ? gameView.game.rewardAmount.toString()
+                ? formatIota(gameView.game.rewardAmount)
                 : '0'}{' '}
               IOTA
             </span>
@@ -506,13 +507,13 @@ export function OrganizerActivityDetailPage() {
           <div className="section-item">
             <span className="meta-label">Close Payout Amount</span>
             <span className="meta-value">
-              {closeView.closePayoutAmount.toString()} IOTA
+              {formatIota(closeView.closePayoutAmount)} IOTA
             </span>
           </div>
           <div className="section-item">
             <span className="meta-label">Remaining Pool</span>
             <span className="meta-value">
-              {closeView.remainingPoolAfterClose.toString()} IOTA
+              {formatIota(closeView.remainingPoolAfterClose)} IOTA
             </span>
           </div>
         </div>

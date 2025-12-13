@@ -1,4 +1,5 @@
 import type { ActivityView } from '../../types/annual-party';
+import { formatIota } from '../../utils/iotaUnits';
 
 interface ActivityListProps {
   activities: ActivityView[];
@@ -99,7 +100,7 @@ function ActivityCard({
         <div className="meta-item">
           <span className="meta-label">Prize Pool</span>
           <span className="meta-value">
-            {activity.prizePoolAmount.toString()} IOTA
+            {formatIota(activity.prizePoolAmount)} IOTA
           </span>
         </div>
         <div className="meta-item">
@@ -112,4 +113,3 @@ function ActivityCard({
     </button>
   );
 }
-

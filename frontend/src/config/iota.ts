@@ -6,6 +6,8 @@ export type SupportedNetwork = (typeof SUPPORTED_NETWORKS)[number];
 
 export const DEFAULT_NETWORK: SupportedNetwork = 'testnet';
 
+export const IS_DEBUG_MODE = false;
+
 export interface NetworkConfigEntry {
   key: SupportedNetwork;
   rpcUrl: string;
@@ -25,4 +27,4 @@ export const NETWORK_CONFIG: Record<SupportedNetwork, NetworkConfigEntry> = {
 };
 
 export const ANNUAL_PARTY_PACKAGE_ID =
-  '0x43572924a0b39b6509737f93365c5eac9cf2718fe6bdd312281face6fcbeebb7';
+  '0x8afa9d387ab7f4b6e3c9a7f9af7469f5591b5bff02761e887e7c21918d73aaa1';

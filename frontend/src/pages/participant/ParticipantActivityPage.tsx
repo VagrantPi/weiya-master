@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 
 import { useActivityQuery } from '../../hooks/use-activities';
 import { useActivityCloseView } from '../../hooks/use-activity-close-view';
 import { useActivityOperations } from '../../hooks/use-activity-operations';
+import { useAnnualPartyEvents } from '../../hooks/use-annual-party-events';
 import { useBonusOperations } from '../../hooks/use-bonus-operations';
 import { useCurrentGame, useGameParticipations } from '../../hooks/use-game';
 import { useGameOperations } from '../../hooks/use-game-operations';
@@ -11,6 +13,8 @@ import { useCurrentLottery } from '../../hooks/use-lottery';
 import { useLotteryOperations } from '../../hooks/use-lottery-operations';
 import { useMyParticipant } from '../../hooks/use-participant';
 import { useWallet } from '../../hooks/useWallet';
+import { makeLotteryExecutedToastKey, parseLotteryExecutedEventPayload } from '../../lib/annualPartyEventPayload';
+import { formatIota } from '../../utils/iotaUnits';
 
 export function ParticipantActivityPage() {
   const params = useParams<{ activityId: string }>();
@@ -18,12 +22,15 @@ export function ParticipantActivityPage() {
 
   const { currentAddress, isConnected } = useWallet();
 
-  const { data: activity, isLoading, error } = useActivityQuery(activityId);
-  const { data: myParticipantState } = useMyParticipant(
+  const activityQuery = useActivityQuery(activityId);
+  const activity = activityQuery.data ?? null;
+
+  const myParticipantQuery = useMyParticipant(
     activityId,
     activity ?? null,
   );
 
+  const myParticipantState = myParticipantQuery.data ?? null;
   const myParticipant = myParticipantState?.participant ?? null;
 
   const closeView = useActivityCloseView(activity ?? null, myParticipant);
@@ -49,15 +56,83 @@ export function ParticipantActivityPage() {
     return participationsQuery.data.find((p) => p.owner === currentAddress) ?? null;
   }, [currentAddress, game, participationsQuery.data]);
 
+  const userChoice = myGameParticipation?.choice ?? null;
+  const correctOption = game?.correctOption ?? null;
+  const hasClaimedGameReward = Boolean(myGameParticipation?.hasClaimedReward);
+
+  let isAnswerCorrect = false;
+  let canClaimGameReward = false;
+
+  if (
+    game &&
+    gameView?.isAnswerRevealed &&
+    userChoice != null &&
+    correctOption != null
+  ) {
+    isAnswerCorrect = userChoice === correctOption;
+    if (isAnswerCorrect) {
+      if (game.rewardMode === 'AVERAGE') {
+        // AVERAGE 模式：只要答對即可領取分攤獎勵（未領取過）
+        canClaimGameReward = !hasClaimedGameReward;
+      } else if (
+        game.winnerAddr &&
+        currentAddress &&
+        game.winnerAddr.toLowerCase() === currentAddress.toLowerCase()
+      ) {
+        // SINGLE 模式：需同時答對且為隨機選出的 winner
+        canClaimGameReward = !hasClaimedGameReward;
+      }
+    }
+  }
+
+  const handleRefreshAll = async () => {
+    await Promise.all([
+      activityQuery.refetch(),
+      myParticipantQuery.refetch(),
+      lotteryViewQuery.refetch(),
+      gameViewQuery.refetch(),
+      participationsQuery.refetch(),
+    ]);
+  };
+
+  const toastedKeysRef = useRef<Set<string>>(new Set());
+
+  useAnnualPartyEvents({
+    activityId,
+    eventTypeNames: ['LotteryExecutedEvent'],
+    enableAutoRefresh: true,
+    onRelevantEvent: () => void handleRefreshAll(),
+    onEvent: (ev) => {
+      if (!isConnected || !currentAddress) return;
+      if (ev.structName !== 'LotteryExecutedEvent') return;
+
+      const payload = parseLotteryExecutedEventPayload(ev);
+      if (!payload?.winnerAddr) return;
+      if (payload.activityId && payload.activityId !== activityId) return;
+
+      if (payload.winnerAddr.toLowerCase() !== currentAddress.toLowerCase()) {
+        return;
+      }
+
+      const key = makeLotteryExecutedToastKey(ev, payload);
+      if (toastedKeysRef.current.has(key)) return;
+      toastedKeysRef.current.add(key);
+
+      toast.success(
+        `恭喜你抽中樂透！獎金 ${formatIota(payload.amount ?? 0n)} IOTA`,
+      );
+    },
+  });
+
   if (!activityId) {
     return <p>無效的活動 ID。</p>;
   }
 
-  if (isLoading) {
+  if (activityQuery.isLoading) {
     return <p>載入活動中...</p>;
   }
 
-  if (error || !activity) {
+  if (activityQuery.error || !activity) {
     return <p>找不到活動或載入失敗。</p>;
   }
 
@@ -129,12 +204,41 @@ export function ParticipantActivityPage() {
   };
 
   const isJoined = Boolean(myParticipant?.joined);
+  const hasJoinedLottery =
+    Boolean(lotteryView?.lottery) &&
+    Boolean(currentAddress) &&
+    (lotteryView?.lottery?.participants ?? []).some((addr) =>
+      addr.toLowerCase() === currentAddress.toLowerCase(),
+    );
+
+  const shouldShowBonusCard =
+    isJoined && activity.hasBonusEvent && !myParticipant?.hasClaimedBonus;
+
+  const shouldShowLotteryCard =
+    isJoined && Boolean(lotteryView?.lottery) && lotteryView?.isOpen;
+
+  const shouldShowGameCard =
+    isJoined &&
+    Boolean(game) &&
+    (gameView?.isOpen ||
+      (gameView?.isAnswerRevealed && isAnswerCorrect && canClaimGameReward));
+
+  const shouldShowCloseRewardCard = Boolean(myParticipantState?.canClaimCloseReward);
+
+  const shouldShowWaitingCard =
+    isJoined &&
+    !shouldShowBonusCard &&
+    !shouldShowLotteryCard &&
+    !shouldShowGameCard &&
+    !shouldShowCloseRewardCard;
 
   return (
     <div className="page-container">
-      <h1 className="page-title">
-        尾牙活動 - <span className="mono">{activity.name}</span>
-      </h1>
+      <div className="page-header-row">
+        <h1 className="page-title">
+          尾牙活動 - <span className="mono">{activity.name}</span>
+        </h1>
+      </div>
 
       <div className="participant-grid">
         <section className="card">
@@ -158,7 +262,7 @@ export function ParticipantActivityPage() {
             </span>
           </p>
           <p className="card-text">
-            獎金池：{activity.prizePool.toString()} IOTA ｜ 參與人數：
+            獎金池：{formatIota(activity.prizePool)} IOTA ｜ 參與人數：
             {activity.participantCount}
           </p>
           <p className="card-text">
@@ -186,157 +290,138 @@ export function ParticipantActivityPage() {
           )}
         </section>
 
-        <section className="card">
-          <h2 className="card-title">Bonus</h2>
-          <p className="card-text">
-            {activity.hasBonusEvent
-              ? `本場有參加獎，每人 ${activity.bonusAmountPerUser.toString()} IOTA。`
-              : '本場尚未設定參加獎。'}
-          </p>
-          {myParticipantState?.canClaimBonus ? (
+        {shouldShowWaitingCard ? (
+          <section className="card">
+            <h2 className="card-title">等待活動發佈</h2>
+            <p className="card-text">
+              你已加入活動，請等待主辦陸續開啟 Bonus / Lottery / Game，或活動結束後開放領取分紅。
+            </p>
+          </section>
+        ) : null}
+
+        {shouldShowBonusCard ? (
+          <section className="card">
+            <h2 className="card-title">Bonus</h2>
+            <p className="card-text">
+              本場有參加獎，每人 {formatIota(activity.bonusAmountPerUser)} IOTA。
+            </p>
+            {myParticipantState?.canClaimBonus ? (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleClaimBonus}
+              >
+                領取參加獎
+              </button>
+            ) : (
+              <p className="card-text">目前沒有可領取的參加獎。</p>
+            )}
+          </section>
+        ) : null}
+
+        {shouldShowLotteryCard ? (
+          <section className="card">
+            <h2 className="card-title">Lottery</h2>
+            <p className="card-text">
+              奬金池：{formatIota(lotteryView?.lottery?.potAmount ?? 0n)} IOTA ｜ 參與人數：
+              {lotteryView?.participantCount ?? 0}
+            </p>
+            {hasJoinedLottery ? (
+              <p className="card-text">你已參與本輪樂透，請等待主辦開獎。</p>
+            ) : (
+              <div className="field-row">
+                <input
+                  className="field-input"
+                  value={lotteryAmountInput}
+                  onChange={(e) => setLotteryAmountInput(e.target.value)}
+                  placeholder="投入金額"
+                />
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleJoinLottery}
+                >
+                  參與樂透
+                </button>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {shouldShowGameCard ? (
+          <section className="card">
+            <h2 className="card-title">Game</h2>
+            {game ? (
+              <>
+                <p className="card-text">題目：{game.question}</p>
+                <div className="game-options">
+                  {game.options.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className={
+                        gameChoice === idx + 1
+                          ? 'btn-secondary game-option-active'
+                          : 'btn-secondary'
+                      }
+                      disabled={gameView?.isAnswerRevealed || !!myGameParticipation}
+                      onClick={() => setGameChoice(idx + 1)}
+                    >
+                      {idx + 1}. {opt}
+                    </button>
+                  ))}
+                </div>
+                {gameView?.isOpen ? (
+                  myGameParticipation ? (
+                    <p className="card-text">你已作答，請等待主辦公布答案。</p>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleSubmitChoice}
+                      disabled={gameChoice == null}
+                    >
+                      送出答案
+                    </button>
+                  )
+                ) : null}
+                {gameView?.isAnswerRevealed && myGameParticipation ? (
+                  <>
+                    <p className="card-text">
+                      你的答案：選項 {myGameParticipation.choice}；正確選項：
+                      {game.correctOption ?? '-'}
+                    </p>
+                    {isAnswerCorrect && canClaimGameReward ? (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={handleClaimGameReward}
+                      >
+                        領取遊戲獎勵
+                      </button>
+                    ) : null}
+                  </>
+                ) : null}
+              </>
+            ) : null}
+          </section>
+        ) : null}
+
+        {shouldShowCloseRewardCard ? (
+          <section className="card">
+            <h2 className="card-title">Close Reward</h2>
+            <p className="card-text">
+              結算分紅總額：{formatIota(closeView.closePayoutAmount)} IOTA
+            </p>
             <button
               type="button"
               className="btn-primary"
-              onClick={handleClaimBonus}
+              onClick={handleClaimCloseReward}
             >
-              領取參加獎
+              領取尾牙分紅
             </button>
-          ) : (
-            <p className="card-text">
-              {isJoined
-                ? '目前沒有可領取的參加獎，或已經領取過。'
-                : '請先加入活動，才能領取參加獎。'}
-            </p>
-          )}
-        </section>
-
-        <section className="card">
-          <h2 className="card-title">Lottery</h2>
-          <p className="card-text">
-            狀態：{lotteryView?.lottery?.status ?? '暫未開啟'}
-          </p>
-          {lotteryView?.lottery ? (
-            <>
-              <p className="card-text">
-                奬金池：{lotteryView.lottery.potAmount.toString()} IOTA ｜ 參與人數：
-                {lotteryView.participantCount}
-              </p>
-              {lotteryView.isOpen ? (
-                <>
-                  <div className="field-row">
-                    <input
-                      className="field-input"
-                      value={lotteryAmountInput}
-                      onChange={(e) => setLotteryAmountInput(e.target.value)}
-                      placeholder="投入金額"
-                    />
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={handleJoinLottery}
-                    >
-                      參與樂透
-                    </button>
-                  </div>
-                </>
-              ) : null}
-            </>
-          ) : (
-            <p className="card-text">Organizer 尚未開啟樂透。</p>
-          )}
-        </section>
-
-        <section className="card">
-          <h2 className="card-title">Game</h2>
-          {game ? (
-            <>
-              <p className="card-text">題目：{game.question}</p>
-              <div className="game-options">
-                {game.options.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className={
-                      gameChoice === idx + 1
-                        ? 'btn-secondary game-option-active'
-                        : 'btn-secondary'
-                    }
-                    disabled={gameView?.isAnswerRevealed || !!myGameParticipation}
-                    onClick={() => setGameChoice(idx + 1)}
-                  >
-                    {idx + 1}. {opt}
-                  </button>
-                ))}
-              </div>
-              {gameView?.isOpen && !myGameParticipation ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleSubmitChoice}
-                  disabled={gameChoice == null}
-                >
-                  送出答案
-                </button>
-              ) : null}
-              {gameView?.isAnswerRevealed && myGameParticipation ? (
-                <>
-                  <p className="card-text">
-                    你的答案：選項 {myGameParticipation.choice}；正確選項：
-                    {game.correctOption ?? '-'}
-                  </p>
-                  {myGameParticipation.isCorrect &&
-                  !myGameParticipation.hasClaimedReward ? (
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={handleClaimGameReward}
-                    >
-                      領取遊戲獎勵
-                    </button>
-                  ) : (
-                    <p className="card-text">
-                      {myGameParticipation.isCorrect
-                        ? '你已領取獎勵或無可領獎勵。'
-                        : '此題已結束，未領獎視為放棄。'}
-                    </p>
-                  )}
-                </>
-              ) : null}
-            </>
-          ) : (
-            <p className="card-text">尚未開始遊戲，請稍候。</p>
-          )}
-        </section>
-
-        <section className="card">
-          <h2 className="card-title">Close Reward</h2>
-          {activity.status === 'CLOSED' ? (
-            <>
-              <p className="card-text">
-                結算分紅總額：{closeView.closePayoutAmount.toString()} IOTA
-              </p>
-              {myParticipantState?.canClaimCloseReward ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleClaimCloseReward}
-                >
-                  領取尾牙分紅
-                </button>
-              ) : (
-                <p className="card-text">
-                  {myParticipant?.hasClaimedCloseReward
-                    ? '你已經領取過尾牙分紅。'
-                    : '目前沒有可領取的分紅，或活動仍在進行中。'}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="card-text">
-              活動尚未關閉。關閉後，你可以在此頁領取終局分紅。
-            </p>
-          )}
-        </section>
+          </section>
+        ) : null}
       </div>
     </div>
   );

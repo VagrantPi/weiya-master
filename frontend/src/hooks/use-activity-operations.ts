@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { getAnnualPartyConfig } from '../consts/annual-party';
+import { toBaseUnits } from '../utils/iotaUnits';
 
 export const useActivityOperations = () => {
   const client = useIotaClient();
@@ -32,9 +33,14 @@ export const useActivityOperations = () => {
       try {
         const tx = new Transaction();
 
+        // UI 傳入的是「整數 IOTA」，這裡換成鏈上最小單位
+        const amountBase = toBaseUnits(params.initialAmount);
+        const amountArg = tx.pure.u64(amountBase);
+        const [initialFundCoin] = tx.splitCoins(tx.gas, [amountArg]);
+
         tx.moveCall({
           target: getTarget('create_activity'),
-          arguments: [tx.pure.string(params.name), tx.pure.u64(params.initialAmount)],
+          arguments: [tx.pure.string(params.name), amountArg, initialFundCoin],
         });
 
         const result = await signAndExecuteTransaction({
@@ -121,12 +127,18 @@ export const useActivityOperations = () => {
       try {
         const tx = new Transaction();
 
+        // UI 以 IOTA 為單位，轉成鏈上最小單位
+        const amountBase = toBaseUnits(params.amount);
+        const amountArg = tx.pure.u64(amountBase);
+        const [paymentCoin] = tx.splitCoins(tx.gas, [amountArg]);
+
         tx.moveCall({
           target: getTarget('add_prize_fund'),
           arguments: [
             tx.pure.id(params.activityId),
             tx.object(params.activityObjectId),
-            tx.pure.u64(params.amount),
+            amountArg,
+            paymentCoin,
           ],
         });
 
@@ -257,4 +269,3 @@ export const useActivityOperations = () => {
     isPending,
   };
 };
-

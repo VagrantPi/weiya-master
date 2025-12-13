@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 
 import { useActivityList } from '../../hooks/use-activities';
+import { formatIota } from '../../utils/iotaUnits';
 
 export function OrganizerActivitiesPage() {
   const navigate = useNavigate();
@@ -63,7 +64,7 @@ export function OrganizerActivitiesPage() {
               <div className="meta-item">
                 <span className="meta-label">Prize Pool</span>
                 <span className="meta-value">
-                  {activity.prizePool.toString()} IOTA
+                  {formatIota(activity.prizePool)} IOTA
                 </span>
               </div>
             </div>
@@ -77,4 +78,3 @@ export function OrganizerActivitiesPage() {
     </div>
   );
 }
-

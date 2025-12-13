@@ -10,16 +10,10 @@ export interface AnnualPartyConfig {
 export const ANNUAL_PARTY: Record<string, AnnualPartyConfig> = {
   testnet: {
     packageId:
-      '0x43572924a0b39b6509737f93365c5eac9cf2718fe6bdd312281face6fcbeebb7',
+      '0x8afa9d387ab7f4b6e3c9a7f9af7469f5591b5bff02761e887e7c21918d73aaa1',
     module: 'annual_party',
-    randomObjectId: '0x6',
-  },
-  devnet: {
-    packageId:
-      '0x43572924a0b39b6509737f93365c5eac9cf2718fe6bdd312281face6fcbeebb7',
-    module: 'annual_party',
-    randomObjectId: '0x6',
-  },
+    randomObjectId: '0x8',
+  }
 };
 
 export const IOTA_COIN_TYPE = '0x2::iota::IOTA';

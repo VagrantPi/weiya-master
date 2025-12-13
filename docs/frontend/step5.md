@@ -181,7 +181,7 @@ export const ANNUAL_PARTY: Record<Network, AnnualPartyConfig> = {
   "testnet": {
     packageId: "0x4357...",
     activityInitCap: "0x...",    // 依實際情況
-    randomObjectId: "0x6",       // 比照 workshop attackBoss 的 random object
+    randomObjectId: "0x8",       // 比照 workshop attackBoss 的 random object
   },
   // ...
 };

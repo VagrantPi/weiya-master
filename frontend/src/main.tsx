@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '@iota/dapp-kit/dist/index.css';
 import './index.css';
 import { AppRouter } from './router';
 import { IotaProvider } from './providers/IotaProvider';

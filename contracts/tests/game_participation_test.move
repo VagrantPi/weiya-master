@@ -1,5 +1,8 @@
 module weiya_master::game_participation_test {
     use weiya_master::annual_party;
+    use iota::balance;
+    use iota::coin;
+    use iota::iota::IOTA;
     use iota::tx_context;
     use iota::object;
     use std::string;
@@ -17,7 +20,8 @@ module weiya_master::game_participation_test {
 
         // 主辦人建立活動（只確認不會中止）
         let name = string::utf8(b"Test");
-        annual_party::create_activity(name, 1000, &mut ctx);
+        let fund = coin::from_balance(balance::create_for_testing<IOTA>(1000), &mut ctx);
+        annual_party::create_activity(name, 1000, fund, &mut ctx);
 
         // 引用三個參與者地址（@0xA, @0xB, @0xC）作為情境說明
         let _user1 = @0xA;
@@ -50,4 +54,3 @@ module weiya_master::game_participation_test {
         abort 22;
     }
 }
-

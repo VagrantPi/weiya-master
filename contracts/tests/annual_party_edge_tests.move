@@ -1,5 +1,8 @@
 module weiya_master::annual_party_edge_tests {
     use std::string;
+    use iota::balance;
+    use iota::coin;
+    use iota::iota::IOTA;
     use iota::tx_context;
     use iota::random;
     use weiya_master::annual_party;
@@ -17,14 +20,16 @@ module weiya_master::annual_party_edge_tests {
     #[test]
     fun test_edge_create_activity_with_initial_amount_success() {
         let mut ctx = new_ctx(@0x1);
-        annual_party::create_activity(string::utf8(b"EdgeActivity"), 1000, &mut ctx);
+        let fund = coin::from_balance(balance::create_for_testing<IOTA>(1000), &mut ctx);
+        annual_party::create_activity(string::utf8(b"EdgeActivity"), 1000, fund, &mut ctx);
     }
 
     // create_activity 正常建立（initial_amount = 0）
     #[test]
     fun test_edge_create_activity_zero_initial_amount_success() {
         let mut ctx = new_ctx(@0x1);
-        annual_party::create_activity(string::utf8(b"ZeroActivity"), 0, &mut ctx);
+        let fund = coin::from_balance(balance::create_for_testing<IOTA>(0), &mut ctx);
+        annual_party::create_activity(string::utf8(b"ZeroActivity"), 0, fund, &mut ctx);
     }
 
     // 非 organizer 呼叫 add_prize_fund 預期對應錯誤碼：E_NOT_ORGANIZER = 1

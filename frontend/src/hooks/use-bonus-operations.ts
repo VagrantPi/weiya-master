@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { getAnnualPartyConfig } from '../consts/annual-party';
+import { toBaseUnits } from '../utils/iotaUnits';
 
 export const useBonusOperations = () => {
   const client = useIotaClient();
@@ -37,12 +38,14 @@ export const useBonusOperations = () => {
       try {
         const tx = new Transaction();
 
+        const amountBase = toBaseUnits(params.bonusPerUser);
+
         tx.moveCall({
           target: getTarget('create_bonus_event'),
           arguments: [
             tx.pure.id(params.activityId),
             tx.object(params.activityObjectId),
-            tx.pure.u64(params.bonusPerUser),
+            tx.pure.u64(amountBase),
           ],
         });
 
@@ -187,4 +190,3 @@ export const useBonusOperations = () => {
     isPending,
   };
 };
-

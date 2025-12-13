@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 
 import type { GameRewardMode } from '../types/annual-party';
 import { getAnnualPartyConfig } from '../consts/annual-party';
+import { toBaseUnits } from '../utils/iotaUnits';
 
 export const useGameOperations = () => {
   const client = useIotaClient();
@@ -56,7 +57,8 @@ export const useGameOperations = () => {
             tx.object(params.activityObjectId),
             tx.pure.string(params.question),
             tx.pure.vector('string', params.options),
-            tx.pure.u64(params.rewardAmount),
+            // UI 以 IOTA 為單位，轉成鏈上最小單位
+            tx.pure.u64(toBaseUnits(params.rewardAmount)),
             tx.pure.u8(modeCode),
           ],
         });
@@ -284,4 +286,3 @@ export const useGameOperations = () => {
     isPending,
   };
 };
-

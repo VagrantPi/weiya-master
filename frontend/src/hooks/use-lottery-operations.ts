@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { getAnnualPartyConfig } from '../consts/annual-party';
+import { toBaseUnits } from '../utils/iotaUnits';
 
 export const useLotteryOperations = () => {
   const client = useIotaClient();
@@ -88,6 +89,11 @@ export const useLotteryOperations = () => {
       try {
         const tx = new Transaction();
 
+        // UI 以 IOTA 為單位，轉成鏈上最小單位
+        const amountBase = toBaseUnits(params.amount);
+        const amountArg = tx.pure.u64(amountBase);
+        const [paymentCoin] = tx.splitCoins(tx.gas, [amountArg]);
+
         tx.moveCall({
           target: getTarget('join_lottery'),
           arguments: [
@@ -95,7 +101,8 @@ export const useLotteryOperations = () => {
             tx.pure.id(params.lotteryId),
             tx.object(params.activityObjectId),
             tx.object(params.lotteryObjectId),
-            tx.pure.u64(params.amount),
+            amountArg,
+            paymentCoin,
           ],
         });
 
@@ -204,4 +211,3 @@ export const useLotteryOperations = () => {
     isPending,
   };
 };
-

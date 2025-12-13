@@ -4,6 +4,9 @@ module weiya_master::annual_party {
     use iota::tx_context::TxContext;
     use iota::event;
     use iota::transfer;
+    use iota::balance::{Self as balance, Balance};
+    use iota::coin::{Self as coin, Coin};
+    use iota::iota::IOTA;
     use iota::random::{Self as random, Random};
     use std::bcs;
     use std::hash;
@@ -35,15 +38,6 @@ module weiya_master::annual_party {
         AVERAGE,
     }
 
-    // TODO: 之後改接 IOTA 官方 Coin 模組
-    public struct Coin<phantom T> has store, drop {
-        // 目前以 u64 模擬金額，之後會改成真正的 IOTA Coin
-        value: u64,
-    }
-
-    // TODO: 之後改接 IOTA 官方 IOTA 型別
-    public struct IOTA has store, drop { }
-
     public struct Activity has key {
         id: UID,
         organizer: address,
@@ -51,7 +45,7 @@ module weiya_master::annual_party {
 
         status: ActivityStatus,
 
-        prize_pool_coin: Coin<IOTA>,
+        prize_pool_coin: Balance<IOTA>,
 
         participant_count: u64,
 
@@ -82,7 +76,7 @@ module weiya_master::annual_party {
         activity_id: ID,
         status: LotteryStatus,
 
-        pot_coin: Coin<IOTA>,
+        pot_coin: Balance<IOTA>,
 
         participants: vector<address>,
         winner: option::Option<address>,
@@ -241,26 +235,52 @@ module weiya_master::annual_party {
     const E_CLOSE_REWARD_ALREADY_CLAIMED: u64 = 23;
     const E_CLOSE_PAYOUT_ZERO: u64 = 24;
     const E_REMAINING_POOL_ZERO: u64 = 25;
+    const E_INSUFFICIENT_PAYMENT: u64 = 26;
 
     //
-    // 內部 IOTA 代幣抽象（目前僅用 u64 模擬）
+    // IOTA 代幣處理
     //
 
-    fun withdraw_iota(amount: u64, _ctx: &mut TxContext): Coin<IOTA> {
-        // TODO: 之後改為從帳戶真正扣除 IOTA
-        Coin { value: amount }
+    fun withdraw_iota(
+        caller: address,
+        mut payment: Coin<IOTA>,
+        amount: u64,
+        ctx: &mut TxContext,
+    ): Coin<IOTA> {
+        let available = coin::value(&payment);
+        assert!(available >= amount, E_INSUFFICIENT_PAYMENT);
+
+        if (available == amount) {
+            payment
+        } else {
+            let taken = coin::split(&mut payment, amount, ctx);
+            transfer::public_transfer(payment, caller);
+            taken
+        }
     }
 
-    fun merge_iota(pool: &mut Coin<IOTA>, coin: Coin<IOTA>) {
-        pool.value = pool.value + coin.value;
+    fun merge_iota(pool: &mut Balance<IOTA>, coin_in: Coin<IOTA>) {
+        let bal = coin::into_balance(coin_in);
+        balance::join(pool, bal);
     }
 
-    fun balance_of_iota(pool: &Coin<IOTA>): u64 {
-        pool.value
+    fun balance_of_iota(pool: &Balance<IOTA>): u64 {
+        balance::value(pool)
     }
 
-    fun deposit_iota(_addr: address, _coin: Coin<IOTA>) {
-        // TODO: 之後改為真正的 IOTA deposit
+    fun split_iota(pool: &mut Balance<IOTA>, amount: u64, ctx: &mut TxContext): Coin<IOTA> {
+        let bal = balance::split(pool, amount);
+        coin::from_balance(bal, ctx)
+    }
+
+    fun withdraw_all_iota(pool: &mut Balance<IOTA>, ctx: &mut TxContext): (Coin<IOTA>, u64) {
+        let bal = balance::withdraw_all(pool);
+        let amount = balance::value(&bal);
+        (coin::from_balance(bal, ctx), amount)
+    }
+
+    fun deposit_iota(addr: address, coin_out: Coin<IOTA>) {
+        transfer::public_transfer(coin_out, addr);
     }
 
     //
@@ -270,11 +290,13 @@ module weiya_master::annual_party {
     public entry fun create_activity(
         name: string::String,
         initial_amount: u64,
+        initial_fund: Coin<IOTA>,
         ctx: &mut TxContext,
     ) {
         let organizer_addr = iota::tx_context::sender(ctx);
 
-        let prize_pool_coin = withdraw_iota(initial_amount, ctx);
+        let coin_in = withdraw_iota(organizer_addr, initial_fund, initial_amount, ctx);
+        let prize_pool_coin = coin::into_balance(coin_in);
 
         let activity = Activity {
             id: object::new(ctx),
@@ -354,6 +376,7 @@ module weiya_master::annual_party {
         activity_id: ID,
         activity: &mut Activity,
         amount: u64,
+        payment: Coin<IOTA>,
         ctx: &mut TxContext,
     ) {
         let organizer_addr = iota::tx_context::sender(ctx);
@@ -367,7 +390,7 @@ module weiya_master::annual_party {
             abort E_NOT_ORGANIZER;
         };
 
-        let coin = withdraw_iota(amount, ctx);
+        let coin = withdraw_iota(organizer_addr, payment, amount, ctx);
         merge_iota(&mut activity.prize_pool_coin, coin);
 
         let new_total = balance_of_iota(&activity.prize_pool_coin);
@@ -471,8 +494,7 @@ module weiya_master::annual_party {
         };
 
         // 從活動獎金池中分割出參加獎金額
-        activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
-        let coin_out = Coin<IOTA> { value: amount };
+        let coin_out = split_iota(&mut activity.prize_pool_coin, amount, ctx);
 
         participant.has_claimed_bonus = true;
 
@@ -522,7 +544,7 @@ module weiya_master::annual_party {
             id: object::new(ctx),
             activity_id,
             status: LotteryStatus::OPEN,
-            pot_coin: Coin<IOTA> { value: 0 },
+            pot_coin: balance::zero<IOTA>(),
             participants: vector[],
             winner: option::none<address>(),
         };
@@ -545,6 +567,7 @@ module weiya_master::annual_party {
         activity: &mut Activity,
         lottery: &mut Lottery,
         amount: u64,
+        payment: Coin<IOTA>,
         ctx: &mut TxContext,
     ) {
         let user_addr = iota::tx_context::sender(ctx);
@@ -575,7 +598,7 @@ module weiya_master::annual_party {
             abort E_ALREADY_JOINED_LOTTERY;
         };
 
-        let coin_in = withdraw_iota(amount, ctx);
+        let coin_in = withdraw_iota(user_addr, payment, amount, ctx);
         merge_iota(&mut lottery.pot_coin, coin_in);
 
         vector::push_back(&mut lottery.participants, user_addr);
@@ -633,9 +656,7 @@ module weiya_master::annual_party {
         let winner_addr = lottery.participants[start];
 
         // 將樂透彩池全部發放給中獎者
-        let amount_total = lottery.pot_coin.value;
-        let coin_out = Coin<IOTA> { value: amount_total };
-        lottery.pot_coin.value = 0;
+        let (coin_out, amount_total) = withdraw_all_iota(&mut lottery.pot_coin, ctx);
 
         deposit_iota(winner_addr, coin_out);
 
@@ -698,7 +719,7 @@ module weiya_master::annual_party {
         };
 
         // 獎金池需足以支付 reward_amount（此處僅檢查數值，不先預扣）
-        if (activity.prize_pool_coin.value < reward_amount) {
+        if (balance_of_iota(&activity.prize_pool_coin) < reward_amount) {
             abort E_INSUFFICIENT_PRIZE_POOL;
         };
 
@@ -994,12 +1015,11 @@ module weiya_master::annual_party {
         };
 
         // 檢查活動獎金池餘額
-        if (activity.prize_pool_coin.value < amount) {
+        if (balance_of_iota(&activity.prize_pool_coin) < amount) {
             abort E_INSUFFICIENT_PRIZE_POOL;
         };
 
-        activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
-        let coin_out = Coin<IOTA> { value: amount };
+        let coin_out = split_iota(&mut activity.prize_pool_coin, amount, ctx);
 
         // 更新參與紀錄領獎狀態
         participation.has_claimed_reward = true;
@@ -1047,7 +1067,7 @@ module weiya_master::annual_party {
             abort E_ACTIVITY_CLOSED;
         };
 
-        let total = activity.prize_pool_coin.value;
+        let total = balance_of_iota(&activity.prize_pool_coin);
         let count = activity.participant_count;
 
         // 當沒有任何 participant 時，關閉活動仍然合法：
@@ -1111,15 +1131,13 @@ module weiya_master::annual_party {
         };
 
         let amount = activity.close_payout_amount;
-        if (activity.prize_pool_coin.value < amount) {
+        if (balance_of_iota(&activity.prize_pool_coin) < amount) {
             abort E_INSUFFICIENT_PRIZE_POOL;
         };
 
-        activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
+        let coin_out = split_iota(&mut activity.prize_pool_coin, amount, ctx);
         activity.remaining_pool_after_close =
             activity.remaining_pool_after_close - amount;
-
-        let coin_out = Coin<IOTA> { value: amount };
 
         participant.has_claimed_close_reward = true;
 
@@ -1150,14 +1168,13 @@ module weiya_master::annual_party {
             abort E_ACTIVITY_NOT_CLOSED;
         };
 
-        let remaining = activity.prize_pool_coin.value;
+        let remaining = balance_of_iota(&activity.prize_pool_coin);
         if (remaining == 0) {
             abort E_REMAINING_POOL_ZERO;
         };
 
-        let coin_out = Coin<IOTA> { value: remaining };
+        let (coin_out, remaining_after_withdraw) = withdraw_all_iota(&mut activity.prize_pool_coin, ctx);
 
-        activity.prize_pool_coin.value = 0;
         activity.remaining_pool_after_close = 0;
 
         deposit_iota(caller, coin_out);
@@ -1165,7 +1182,7 @@ module weiya_master::annual_party {
         event::emit(RemainingPoolWithdrawnEvent {
             activity_id,
             organizer: caller,
-            amount: remaining,
+            amount: remaining_after_withdraw,
         });
     }
 
@@ -1240,8 +1257,7 @@ module weiya_master::annual_party {
         *winner_flag_ref = false;
 
         // 從獎金池分出 prize
-        activity.prize_pool_coin.value = activity.prize_pool_coin.value - amount;
-        let coin_out = Coin<IOTA> { value: amount };
+        let coin_out = split_iota(&mut activity.prize_pool_coin, amount, ctx);
 
         deposit_iota(winner_addr, coin_out);
 

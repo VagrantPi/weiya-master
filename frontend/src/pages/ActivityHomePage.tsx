@@ -10,7 +10,7 @@ import { useWallet } from '../hooks/useWallet';
 export function ActivityHomePage() {
   const navigate = useNavigate();
   const { data: activities = [], isLoading, refetch } = useActivitiesQuery();
-  const { currentAddress, isConnected, network, snapStatus } = useWallet();
+  const { currentAddress, isConnected } = useWallet();
   const { createActivity, isPending: isCreating } = useActivityOperations();
 
   const [activeTab, setActiveTab] = useState<'all' | 'organized' | 'joined'>(
@@ -37,7 +37,7 @@ export function ActivityHomePage() {
     activeTab === 'organized' ? organizedActivities : allActivities;
 
   const handleOpenDetail = (id: string) => {
-    navigate(`/organizer/activities/${id}`);
+    navigate(`/activities/${id}`);
   };
 
   const handleCreate = async (name: string, initialAmount: bigint | number) => {
@@ -61,18 +61,6 @@ export function ActivityHomePage() {
             <span className="meta-label">Wallet</span>
             <span className="meta-value mono">
               {isConnected ? shortAddress || '已連線' : '尚未連線 IOTA Snap'}
-            </span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Network</span>
-            <span className="meta-value">{network}</span>
-          </div>
-          <div className="section-item">
-            <span className="meta-label">Snap</span>
-            <span className="meta-value">
-              {snapStatus === 'CONNECTED'
-                ? 'IOTA Snap Connected'
-                : snapStatus}
             </span>
           </div>
         </div>
@@ -138,4 +126,3 @@ export function ActivityHomePage() {
     </div>
   );
 }
-

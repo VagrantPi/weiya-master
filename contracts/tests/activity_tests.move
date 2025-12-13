@@ -1,5 +1,8 @@
 module weiya_master::activity_tests {
     use weiya_master::annual_party;
+    use iota::balance;
+    use iota::coin;
+    use iota::iota::IOTA;
     use iota::tx_context;
     use std::string;
 
@@ -7,7 +10,8 @@ module weiya_master::activity_tests {
     fun test_create_activity_success() {
         // 僅確認 create_activity 可以正常執行，不會中止
         let mut ctx = tx_context::new_from_hint(@0x1, 0, 0, 0, 0);
-        annual_party::create_activity(string::utf8(b"PartyA"), 1000, &mut ctx);
+        let fund = coin::from_balance(balance::create_for_testing<IOTA>(1000), &mut ctx);
+        annual_party::create_activity(string::utf8(b"PartyA"), 1000, fund, &mut ctx);
     }
 
     #[test]

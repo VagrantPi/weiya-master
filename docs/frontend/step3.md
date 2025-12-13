@@ -67,7 +67,7 @@ import { Network } from "@iota/dapp-kit";
 export const ANNUAL_PARTY = {
   testnet: {
     packageId:
-      "0x43572924a0b39b6509737f93365c5eac9cf2718fe6bdd312281face6fcbeebb7",
+      "0x8afa9d387ab7f4b6e3c9a7f9af7469f5591b5bff02761e887e7c21918d73aaa1",
     module: "annual_party",
   },
   // devnet / mainnet 如有需要再加
