@@ -290,8 +290,3 @@ Key points:
 * The IOTA Snap will be requested/installed when the user connects their wallet.
 * All on-chain transactions (joining activities, claiming rewards, etc.) are signed by the user’s wallet and sent via the Snap / IOTA RPC.
 
----
-
-## 📝 License
-
-TBD – choose an appropriate license (e.g. MIT) for your use case.
