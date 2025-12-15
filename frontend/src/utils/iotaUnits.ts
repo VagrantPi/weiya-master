@@ -20,6 +20,8 @@ export const fromBaseUnits = (amountBase: bigint): bigint => {
 };
 
 // 以字串呈現「整數 IOTA」
-export const formatIota = (amountBase: bigint): string => {
-  return fromBaseUnits(amountBase).toString();
+export const formatIota = (amountBase: bigint | number): string => {
+  const base =
+    typeof amountBase === 'bigint' ? amountBase : BigInt(Math.trunc(amountBase));
+  return fromBaseUnits(base).toString();
 };

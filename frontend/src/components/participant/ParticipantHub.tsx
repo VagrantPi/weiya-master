@@ -1,23 +1,21 @@
-// frontend/src/components/participant/ParticipantHub.tsx
 import type { FC } from 'react';
 import { ActionCard } from '../layouts/ActionCard';
 import './ParticipantHub.css';
 
-// Again, a huge props interface to keep logic separate
+// 這裡用較大的 props 介面，把狀態與行為從頁面邏輯抽離，方便維護
 interface ParticipantHubProps {
   activity: any;
   isJoined: boolean;
   myParticipant: any;
-  currentAddress: string | null;
   
-  // Boolean flags to control card visibility
+  // 控制卡片顯示的布林旗標
   shouldShowBonusCard: boolean;
   shouldShowLotteryCard: boolean;
   shouldShowGameCard: boolean;
   shouldShowCloseRewardCard: boolean;
   shouldShowWaitingCard: boolean;
   
-  // Data for cards
+  // 各卡片需要的資料
   lotteryView: any;
   gameView: any;
   hasJoinedLottery: boolean;
@@ -28,11 +26,11 @@ interface ParticipantHubProps {
   canClaimGameReward: boolean;
   closeView: any;
   
-  // State setters
+  // 狀態更新函式
   setLotteryAmountInput: (val: string) => void;
   setGameChoice: (val: number | null) => void;
   
-  // Handlers
+  // 行為處理函式
   handleJoinActivity: () => Promise<void>;
   handleClaimBonus: () => Promise<void>;
   handleJoinLottery: () => Promise<void>;
@@ -40,13 +38,13 @@ interface ParticipantHubProps {
   handleClaimGameReward: () => Promise<void>;
   handleClaimCloseReward: () => Promise<void>;
   
-  // Utils
+  // 輔助工具
   formatIota: (val: bigint | number) => string;
 }
 
 export const ParticipantHub: FC<ParticipantHubProps> = (props) => {
   const {
-    activity, isJoined, myParticipant, currentAddress,
+    activity, isJoined, myParticipant,
     shouldShowBonusCard, shouldShowLotteryCard, shouldShowGameCard,
     shouldShowCloseRewardCard, shouldShowWaitingCard,
     lotteryView, gameView, hasJoinedLottery, lotteryAmountInput, gameChoice,
@@ -61,7 +59,7 @@ export const ParticipantHub: FC<ParticipantHubProps> = (props) => {
 
   return (
     <div className="participant-hub">
-      {/* Join Activity Card is always primary if not joined */}
+      {/* 尚未加入且活動開放時，優先顯示加入活動的卡片 */}
       {!isJoined && activity.status === 'OPEN' && (
         <ActionCard title="Welcome" description="Join the annual party to participate in all events!">
           <button type="button" className="btn" onClick={handleJoinActivity}>Join Activity</button>

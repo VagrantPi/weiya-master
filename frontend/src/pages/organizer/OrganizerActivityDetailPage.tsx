@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import QRCodeModule from 'react-qr-code';
 
+import { OrganizerDashboard } from '../../components/organizer/OrganizerDashboard';
 import { useActivityQuery } from '../../hooks/use-activities';
 import { useActivityCloseOperations } from '../../hooks/use-activity-close-operations';
 import { useActivityCloseView } from '../../hooks/use-activity-close-view';
@@ -14,10 +14,6 @@ import { useLotteryOperations } from '../../hooks/use-lottery-operations';
 import { useMyParticipant } from '../../hooks/use-participant';
 import type { GameRewardMode } from '../../types/annual-party';
 import { formatIota } from '../../utils/iotaUnits';
-
-// react-qr-code 在不同打包模式下可能以 default 或 named 匯出，這裡統一處理
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const QRCode = (QRCodeModule as any).default ?? QRCodeModule;
 
 export function OrganizerActivityDetailPage() {
   const params = useParams<{ activityId: string }>();

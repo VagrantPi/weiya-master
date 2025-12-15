@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { ParticipantHub } from '../../components/participant/ParticipantHub';
+import { ParticipantHud } from '../../components/participant/ParticipantHud';
 import { useActivityQuery } from '../../hooks/use-activities';
 import { useActivityCloseView } from '../../hooks/use-activity-close-view';
 import { useActivityOperations } from '../../hooks/use-activity-operations';
@@ -215,13 +217,15 @@ export function ParticipantActivityPage() {
     isJoined && activity.hasBonusEvent && !myParticipant?.hasClaimedBonus;
 
   const shouldShowLotteryCard =
-    isJoined && Boolean(lotteryView?.lottery) && lotteryView?.isOpen;
+    isJoined && Boolean(lotteryView?.lottery) && Boolean(lotteryView?.isOpen);
 
   const shouldShowGameCard =
     isJoined &&
     Boolean(game) &&
-    (gameView?.isOpen ||
-      (gameView?.isAnswerRevealed && isAnswerCorrect && canClaimGameReward));
+    Boolean(
+      gameView?.isOpen ||
+        (gameView?.isAnswerRevealed && isAnswerCorrect && canClaimGameReward),
+    );
 
   const shouldShowCloseRewardCard = Boolean(myParticipantState?.canClaimCloseReward);
 
@@ -246,7 +250,6 @@ export function ParticipantActivityPage() {
         activity={activity}
         isJoined={isJoined}
         myParticipant={myParticipant}
-        currentAddress={currentAddress}
         shouldShowBonusCard={shouldShowBonusCard}
         shouldShowLotteryCard={shouldShowLotteryCard}
         shouldShowGameCard={shouldShowGameCard}
