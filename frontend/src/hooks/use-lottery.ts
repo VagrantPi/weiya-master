@@ -4,6 +4,38 @@ import type { IotaObjectResponse } from '@iota/iota-sdk/client';
 
 import type { Activity, Lottery, LotteryView } from '../types/annual-party';
 
+const readMoveFieldDeep = (
+  value: unknown,
+  key: string,
+  maxDepth = 5,
+): unknown => {
+  let current: unknown = value;
+  let depth = 0;
+
+  while (current && typeof current === 'object' && depth < maxDepth) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const obj = current as any;
+    if (key in obj) return obj[key];
+    if ('fields' in obj) {
+      current = obj.fields;
+      depth += 1;
+      continue;
+    }
+    break;
+  }
+  return null;
+};
+
+const toBigIntSafe = (value: unknown): bigint => {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') {
+    if (value === '') return 0n;
+    return BigInt(value);
+  }
+  return 0n;
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mapLotteryFromObject = (obj: IotaObjectResponse): Lottery => {
   if (!obj.data) {
@@ -50,9 +82,11 @@ const mapLotteryFromObject = (obj: IotaObjectResponse): Lottery => {
 
   const potCoin = rawFields.pot_coin ?? {};
   const potValue =
-    potCoin?.fields?.value ??
-    potCoin?.value ??
-    rawFields.pot_coin ??
+    readMoveFieldDeep(potCoin, 'value') ??
+    // 有些節點會直接把 Balance<T> 展平成數值/字串
+    (typeof potCoin === 'bigint' || typeof potCoin === 'number' || typeof potCoin === 'string'
+      ? potCoin
+      : null) ??
     rawFields.pot_amount ??
     0;
 
@@ -80,16 +114,6 @@ const mapLotteryFromObject = (obj: IotaObjectResponse): Lottery => {
       }
     }
   }
-
-  const toBigIntSafe = (value: unknown): bigint => {
-    if (typeof value === 'bigint') return value;
-    if (typeof value === 'number') return BigInt(value);
-    if (typeof value === 'string') {
-      if (value === '') return 0n;
-      return BigInt(value);
-    }
-    return 0n;
-  };
 
   return {
     id: objectId,

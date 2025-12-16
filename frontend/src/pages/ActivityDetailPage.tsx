@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 
 import { ActivityBonusPanel } from '../components/activity/ActivityBonusPanel';
 import { ActivityClosePanel } from '../components/activity/ActivityClosePanel';
@@ -20,6 +21,11 @@ import { useCurrentLottery } from '../hooks/use-lottery';
 import { useLotteryOperations } from '../hooks/use-lottery-operations';
 import { useMyParticipant } from '../hooks/use-participant';
 import { useWallet } from '../hooks/useWallet';
+import {
+  makeLotteryExecutedToastKey,
+  parseLotteryExecutedEventPayload,
+} from '../lib/annualPartyEventPayload';
+import { formatIota } from '../utils/iotaUnits';
 
 interface ActivityDetailView {
   id: string;
@@ -58,6 +64,25 @@ export function ActivityDetailPage() {
 
   const lotteryQuery = useCurrentLottery(activity);
   const lotteryView = lotteryQuery.data ?? null;
+
+  const hasJoinedCurrentLottery = useMemo(() => {
+    if (!lotteryView?.lottery || !currentAddress) return false;
+    return lotteryView.lottery.participants.some(
+      (addr) => addr.toLowerCase() === currentAddress.toLowerCase(),
+    );
+  }, [currentAddress, lotteryView?.lottery]);
+
+  const lotteryParticipationRef = useRef<{
+    lotteryId: string | null;
+    hasJoined: boolean;
+  }>({ lotteryId: null, hasJoined: false });
+  useEffect(() => {
+    if (!lotteryView?.lottery) return;
+    lotteryParticipationRef.current = {
+      lotteryId: lotteryView.lottery.id,
+      hasJoined: hasJoinedCurrentLottery,
+    };
+  }, [hasJoinedCurrentLottery, lotteryView?.lottery]);
 
   const gameQuery = useCurrentGame(activity);
   const gameView = gameQuery.data ?? null;
@@ -129,6 +154,8 @@ export function ActivityDetailPage() {
     myParticipantQuery,
   ]);
 
+  const toastedKeysRef = useRef<Set<string>>(new Set());
+
   // 背景訂閱鏈上事件，避免因為 Event Feed UI 被隱藏而失去自動刷新能力
   const annualPartyEvents = useAnnualPartyEvents({
     enabled: Boolean(activityId),
@@ -137,6 +164,35 @@ export function ActivityDetailPage() {
     onRelevantEvent: () => void handleRefreshAll(),
     maxEvents: 0,
     pollingIntervalMs: 10_000,
+    onEvent: (ev) => {
+      if (!isConnected || !currentAddress) return;
+      if (ev.structName !== 'LotteryExecutedEvent') return;
+
+      const payload = parseLotteryExecutedEventPayload(ev);
+      if (!payload?.winnerAddr) return;
+      if (payload.activityId && payload.activityId !== activityId) return;
+
+      // 只提醒「有參加本輪樂透」的使用者，避免干擾未參加的人
+      const { lotteryId, hasJoined } = lotteryParticipationRef.current;
+      if (!hasJoined) return;
+      if (payload.lotteryId && lotteryId && payload.lotteryId !== lotteryId) {
+        return;
+      }
+
+      const key = makeLotteryExecutedToastKey(ev, payload);
+      if (toastedKeysRef.current.has(key)) return;
+      toastedKeysRef.current.add(key);
+
+      const amount = payload.amount ?? 0n;
+      const isWinner =
+        payload.winnerAddr.toLowerCase() === currentAddress.toLowerCase();
+
+      if (isWinner) {
+        toast.success(`恭喜你抽中樂透！獎金 ${formatIota(amount)} IOTA`);
+      } else {
+        toast.info(`本輪樂透未中獎（獎金 ${formatIota(amount)} IOTA）`);
+      }
+    },
   });
 
   // 保底：僅在事件串流未連上、且未進入 polling fallback 時，低頻輪詢狀態
