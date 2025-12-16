@@ -38,76 +38,132 @@ module weiya_master::annual_party {
         AVERAGE,
     }
 
+    // 活動結構體
+    // 代表一場公司尾牙抽獎遊戲活動，管理獎金池、參加者、參加獎、樂透與遊戲等資訊
     public struct Activity has key {
+        // 活動的唯一識別符
         id: UID,
+        // 活動主辦人的地址
         organizer: address,
+        // 活動名稱
         name: string::String,
 
+        // 活動狀態：OPEN（進行中）或 CLOSED（已結束）
         status: ActivityStatus,
 
+        // IOTA 原生代幣獎金池，存儲所有可用於發獎的 IOTA
         prize_pool_coin: Balance<IOTA>,
 
+        // 已加入活動的參加者總數
         participant_count: u64,
 
+        // 是否已創建參加獎事件（每活動最多一次）
         has_bonus_event: bool,
+        // 參加獎金額，每位參加者可領取的 IOTA 數量
         bonus_amount_per_user: u64,
 
+        // 活動關閉時每位參加者可領取的平均分配金額（IOTA）
         close_payout_amount: u64,
+        // 活動關閉時獎金池的剩餘總額，用於前端顯示與歷史記錄
         remaining_pool_after_close: u64,
 
+        // 所有已報名參加者的地址列表（可包含重複，但不允許重新報名）
         participants: vector<address>,
+        // 與 participants 對應的布爾向量，true 表示該位置的參加者仍可被抽中；被中獎後設為 false 避免重複
         eligible_flags: vector<bool>,
+        // 當前進行中的樂透 ID（最多一個），若無則為 None
         lottery_id: option::Option<ID>,
+        // 當前進行中的四選一遊戲 ID（最多一個），若無則為 None；建立新遊戲時前一場自動標記為 CLOSED
         current_game_id: option::Option<ID>,
     }
 
+    // 員工參與活動狀態結構體
+    // 記錄單一員工在特定活動中的參與情況與領獎狀態
     public struct Participant has key {
+        // 參與記錄的唯一識別符
         id: UID,
+        // 對應活動的 ID
         activity_id: ID,
+        // 員工的錢包地址
         owner: address,
 
+        // 員工是否已報名此活動
         joined: bool,
+        // 員工是否已領取該活動的參加獎（每活動最多領一次）
         has_claimed_bonus: bool,
+        // 員工是否已領取活動結束時的平均分配獎金（每活動最多領一次）
         has_claimed_close_reward: bool,
     }
 
+    // 樂透結構體
+    // 管理單場樂透的獎金池、參加者與開獎結果
     public struct Lottery has key {
+        // 樂透的唯一識別符
         id: UID,
+        // 樂透所屬的活動 ID
         activity_id: ID,
+        // 樂透狀態：OPEN（進行中）、DRAWN（已開獎）、CLOSED（已結束）
         status: LotteryStatus,
 
+        // 樂透獎金池，由所有參加者投入的 IOTA 組成
         pot_coin: Balance<IOTA>,
 
+        // 單場樂透的所有參加者地址列表（不允許重複參與同場樂透）
         participants: vector<address>,
+        // 樂透開獎後的中獎者地址，若未開獎則為 None
         winner: option::Option<address>,
     }
 
+    // 四選一遊戲結構體
+    // 管理單場遊戲的題目、選項、獎金及參與情況
     public struct Game has key {
+        // 遊戲的唯一識別符
         id: UID,
+        // 遊戲所屬的活動 ID
         activity_id: ID,
+        // 遊戲狀態：OPEN（進行中，可提交答案）、ANSWER_REVEALED（已公布答案）、CLOSED（已結束，不可領獎）
         status: GameStatus,
 
+        // 遊戲題目
         question: string::String,
+        // 遊戲選項，固定 4 個選項（選項編號為 1~4）
         options: vector<string::String>,
+        // 本回合遊戲預計發放的總獎金（IOTA 數量），從活動獎金池支出
         reward_amount: u64,
+        // 獎金發放模式：SINGLE（單人中獎）或 AVERAGE（平均分配給所有答對者）
         reward_mode: GameRewardMode,
 
+        // 正確答案（1~4），公布答案時設置，若未公布則為 None
         correct_option: option::Option<u8>,
+        // 此遊戲中答對的參加者總數
         total_correct: u64,
+        // SINGLE 模式下被隨機抽中的中獎者地址，AVERAGE 模式下為 None；若無人答對則為 None
         winner_addr: option::Option<address>,
+        // 本遊戲所有 GameParticipation object 的 ID 列表，便於遍歷參與者
         participation_ids: vector<ID>,
+        // 本遊戲所有參與者的地址列表，用於快速查詢
         participation_owners: vector<address>,
+        // 本遊戲所有參與者提交的答案列表（1~4），與 participation_owners 一一對應
         participation_choices: vector<u8>,
     }
 
+    // 遊戲參與紀錄結構體
+    // 記錄員工在單場遊戲中的答案選擇與領獎狀態
     public struct GameParticipation has key {
+        // 參與紀錄的唯一識別符
         id: UID,
+        // 所屬遊戲的 ID
         game_id: ID,
+        // 所屬活動的 ID
         activity_id: ID,
+        // 員工的錢包地址
         owner: address,
 
+        // 員工提交的答案選擇（1~4）
         choice: u8,
+        // 員工的答案是否正確
         is_correct: bool,
+        // 員工是否已領取該遊戲的獎金（每場遊戲最多領一次，若遊戲被標記為 CLOSED 則視為放棄）
         has_claimed_reward: bool,
     }
 

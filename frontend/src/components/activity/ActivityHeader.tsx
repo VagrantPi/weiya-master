@@ -55,7 +55,11 @@ export const ActivityHeader: FC<ActivityHeaderProps> = ({
     (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim() ||
       `${window.location.origin}${import.meta.env.BASE_URL}`,
   );
-  const participantUrl = new URL(`activities/${activity.id}`, appBaseUrl).toString();
+  const participantUrl = (() => {
+    const url = new URL(appBaseUrl);
+    url.hash = `/activities/${activity.id}`;
+    return url.toString();
+  })();
 
   return (
     <header className="card section activity-header">
