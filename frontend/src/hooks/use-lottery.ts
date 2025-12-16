@@ -52,6 +52,7 @@ const mapLotteryFromObject = (obj: IotaObjectResponse): Lottery => {
   const potValue =
     potCoin?.fields?.value ??
     potCoin?.value ??
+    rawFields.pot_coin ??
     rawFields.pot_amount ??
     0;
 
@@ -140,4 +141,3 @@ export const useCurrentLottery = (
     },
   });
 };
-
